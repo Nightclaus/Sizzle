@@ -7,7 +7,6 @@ import 'firebase_options.dart';
 import 'app/controllers/auth_controller.dart'; 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -30,6 +29,7 @@ class MyApp extends StatelessWidget {
       initialRoute: AppPages.INITIAL, // Or check auth state here to decide
       getPages: AppPages.routes,
       theme: ThemeData(
+        useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.yellow.shade800),
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,

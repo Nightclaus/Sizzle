@@ -35,7 +35,7 @@ class AuthController extends GetxController {
     if (user == null) {
       if (Get.currentRoute != Routes.LOGIN) Get.offAllNamed(Routes.LOGIN);
     } else {
-      Get.offAllNamed(Routes.HOME);
+      Get.offAllNamed(Routes.TASKS); // Move to the task screen for now
     }
   }
 
