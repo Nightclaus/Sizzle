@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "23043592277",
+    "project_id": "sizzle-a888e",
+    "storage_bucket": "sizzle-a888e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:23043592277:android:eb5ab04db99014e6ba44dc",
+        "android_client_info": {
+          "package_name": "com.example.sizzle"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "23043592277-mn5ufb8otq3n7dh819sfbthv3iu4ni78.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCiPkdb_-878tlF6ZxEZqDDUl5I0qLv3tA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "23043592277-mn5ufb8otq3n7dh819sfbthv3iu4ni78.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "23043592277-b7ro6k579clu9ri9hlgh51dncanvd9p1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.sizzle"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

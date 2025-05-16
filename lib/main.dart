@@ -1,9 +1,18 @@
+// main.dart
 import 'package:flutter/material.dart';
-import '/subpages/signin.dart';
-import '/subpages/dashboard.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:get/get.dart';
+import 'app/routes/app_pages.dart';
+import 'firebase_options.dart';
+import 'app/controllers/auth_controller.dart'; 
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  Get.put(AuthController(), permanent: true); // Ensure session manager is always active, tho it means that the binding doc is kinda uselesss
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -11,37 +20,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Sizle',
+    return GetMaterialApp(
+      title: "My Auth App",
+      initialRoute: AppPages.INITIAL, // Or check auth state here to decide
+      getPages: AppPages.routes,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.amber),
+        primarySwatch: Colors.blue,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const ScreenManager(title: 'Sizle'),
+      debugShowCheckedModeBanner: false,
     );
-  }
-}
-
-class ScreenManager extends StatefulWidget {
-  const ScreenManager({super.key, required this.title});
-  final String title;
-
-  @override
-  State<ScreenManager> createState() => _ScreenManagerState();
-}
-
-class _ScreenManagerState extends State<ScreenManager> {
-  String currentPage = 'signin';            // Default on signin page
-  void changePageRequestManager(String nameOfNewPage) {
-    setState(() {
-      currentPage = nameOfNewPage;
-    });
-  }
-  @override // 
-  Widget build(BuildContext context) {
-    final subpages = {
-      'signin': SignInPage(title: widget.title, changePageTo: changePageRequestManager,),
-      'dashboard': DashboardPage(title: widget.title, changePageTo: changePageRequestManager),
-    };
-    return subpages[currentPage]!;
   }
 }

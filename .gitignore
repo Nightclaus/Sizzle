@@ -46,3 +46,9 @@ app.*.map.json
 
 # Planning
 lib/plan.dart
+
+# ENV
+.env
+
+# Node modules
+node_modules
