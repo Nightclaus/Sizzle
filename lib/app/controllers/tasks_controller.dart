@@ -93,8 +93,8 @@ class TasksController extends GetxController {
 
 
   void _addDefaultColumns() { // Testcase
-    addColumn("Up Next");
-     addColumn("Up ");
+    addColumn("Todo");
+    addColumn("Completed");
 
     // Add a sample task
     if (columns.isNotEmpty && columns.first.tasks.isEmpty) {

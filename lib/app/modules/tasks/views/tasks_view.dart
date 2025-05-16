@@ -146,20 +146,21 @@ class TasksPage extends GetView<TasksController> {
                         SizedBox(
                           height: 7,
                         ),
-                        SizedBox(
-                          height: column.getHeight,
-                          child: ListView.builder(
-                            itemCount: column.tasks.length,
-                            itemBuilder: (ctx, taskIndex) {
-                              final task = column.tasks[taskIndex];
-                              return TaskCardWidget(
-                                task: task,
-                                onTap: () {
-                                  // TODO: Implement task detail view or edit dialog
-                                  Get.snackbar("Task Tapped", task.name, snackPosition: SnackPosition.BOTTOM);
-                                },
-                              );
-                            },
+                        Obx(() => SizedBox(  // Observe changes to tasks within this specific column
+                            height: column.getHeight,
+                            child: ListView.builder(
+                              itemCount: column.tasks.length,
+                              itemBuilder: (ctx, taskIndex) {
+                                final task = column.tasks[taskIndex];
+                                return TaskCardWidget(
+                                  task: task,
+                                  onTap: () {
+                                    // TODO: Implement task detail view or edit dialog
+                                    Get.snackbar("Task Tapped", task.name, snackPosition: SnackPosition.BOTTOM);
+                                  },
+                                );
+                              },
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),

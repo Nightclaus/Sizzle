@@ -16,6 +16,6 @@ class TaskColumn {
     }
   }
 
-  double get getHeight => tasks.length * 137; // Getter for height
+  double get getHeight => tasks.length * 137; // Getter for height, maybe get more accurate one based on item content
   double get getFullHeight => (tasks.isEmpty) ? getHeight + 130 : getHeight + 150; // Better bottom for empty columns
 }
