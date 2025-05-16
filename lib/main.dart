@@ -5,12 +5,18 @@ import 'package:get/get.dart';
 import 'app/routes/app_pages.dart';
 import 'firebase_options.dart';
 import 'app/controllers/auth_controller.dart'; 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  await dotenv.load(fileName: '.env');
+  print('Loaded Client ID: ${dotenv.env['GOOGLE_CLIENT_ID']}');
+
   Get.put(AuthController(), permanent: true); // Ensure session manager is always active, tho it means that the binding doc is kinda uselesss
   runApp(MyApp());
 }

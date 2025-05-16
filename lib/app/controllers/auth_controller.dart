@@ -4,27 +4,30 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../routes/app_pages.dart'; // For navigation
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AuthController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    
-  );
+  late GoogleSignIn _googleSignIn;
 
-  // Observables for UI state
+  // Observables
   var isLoading = false.obs;
-  var isLoginMode = true.obs; // To toggle between Login and Sign Up
-  var errorMessage = ''.obs; // To display errors
-
-  // Observable for user state
+  var isLoginMode = true.obs;
+  var errorMessage = ''.obs;
   Rx<User?> firebaseUser = Rx<User?>(null);
 
   @override
   void onInit() {
     super.onInit();
-    // Listen to auth state changes
+
+    final clientId = dotenv.env['GOOGLE_CLIENT_ID'];
+    assert(clientId != null, 'GOOGLE_CLIENT_ID is missing from .env');
+
+    _googleSignIn = kIsWeb
+        ? GoogleSignIn(clientId: clientId!)
+        : GoogleSignIn();
+
     firebaseUser.bindStream(_auth.authStateChanges());
-    // Navigate based on user state
     ever(firebaseUser, _setInitialScreen);
   }
 
