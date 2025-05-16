@@ -15,10 +15,10 @@ class LoginScreen extends GetView<AuthController> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
 
-    return Scaffold(
+    if (screenWidth >= 450) {
+      return Scaffold(
       body: Stack(
         children: [
           // Background image
@@ -36,12 +36,57 @@ class LoginScreen extends GetView<AuthController> {
               child: Container( 
                 padding: EdgeInsets.only(
                   top: 15,
-                  left: 25,
-                  right: 25,
+                  left: 35,
+                  right: 35,
                   bottom: 25
                 ),
                 color: Colors.white,
-                child: Form(
+                child: content(context)
+              ),
+            ),
+          ),
+          ),
+        ])
+      );
+    } else {
+      return Scaffold(
+      body: Stack(
+        children: [
+          // Background image
+          Positioned.fill(
+            child: Image.asset(
+              'assets/harvest.jpg',
+              fit: BoxFit.cover, // Ensures it fully covers the background
+            ),
+          ), 
+          Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320, maxHeight: 500),
+              child: Container( 
+                padding: EdgeInsets.only(
+                  top: 15,
+                  left: 20,
+                  right: 20,
+                  bottom: 25
+                ),
+                color: Colors.white,
+                child: content(context)
+              ),
+            ),
+          ),
+          ),
+        ])
+      );
+    }
+  }
+
+  Widget content(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
+    return Form(
                   key: _formKey,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -181,12 +226,6 @@ class LoginScreen extends GetView<AuthController> {
                       ),
                     ],
                   ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ]),
-    );
+                );
   }
 }
