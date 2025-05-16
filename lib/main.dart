@@ -30,6 +30,7 @@ class MyApp extends StatelessWidget {
       initialRoute: AppPages.INITIAL, // Or check auth state here to decide
       getPages: AppPages.routes,
       theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.yellow.shade800),
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
