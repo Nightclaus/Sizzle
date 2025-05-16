@@ -15,9 +15,7 @@ void main() async {
   );
 
   await dotenv.load(fileName: '.env');
-  print('Loaded Client ID: ${dotenv.env['GOOGLE_CLIENT_ID']}');
-
-  Get.put(AuthController(), permanent: true); // Ensure session manager is always active, tho it means that the binding doc is kinda uselesss
+  //print('Loaded Client ID: ${dotenv.env['GOOGLE_CLIENT_ID']}');
   runApp(MyApp());
 }
 
@@ -26,6 +24,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Get.put(AuthController(), permanent: true); // Ensure session manager is always active, tho it means that the binding doc is kinda uselesss
     return GetMaterialApp(
       title: "My Auth App",
       initialRoute: AppPages.INITIAL, // Or check auth state here to decide

@@ -32,7 +32,7 @@ class LoginScreen extends GetView<AuthController> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 380, maxHeight: 500),
+              constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
               child: Container( 
                 padding: EdgeInsets.only(
                   top: 15,
