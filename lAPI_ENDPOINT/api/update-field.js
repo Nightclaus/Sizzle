@@ -14,46 +14,19 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-export default function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  let rawBody = '';
-  
-
-  req.on('data', (chunk) => {
-    rawBody += chunk;
-  });
-
-  req.on('end', async () => {
-    let body;
+export default async function handler(req, res) {
+  if (req.method === 'POST' || req.method === 'PATCH') {
     try {
-      body = JSON.parse(rawBody);
-    } catch (err) {
-      return res.status(400).json({ error: 'Invalid JSON', details: err.message });
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const { firebaseJWT, field, value } = body;
+
+      // do stuff
+      res.status(200).json({ ok: true, value });
+    } catch (e) {
+      console.error('Bad JSON:', e);
+      res.status(400).json({ error: 'Invalid JSON' });
     }
-
-    const { firebaseJWT, field, value } = body;
-
-    if (!firebaseJWT || !field || value === undefined) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    try {
-      const decoded = await admin.auth().verifyIdToken(firebaseJWT);
-      const docId = decoded.uid;
-      const docRef = db.collection(process.env.DEFAULT_COLLECTION_NAME).doc(docId);
-
-      await docRef.set({ [field]: value }, { merge: true });
-
-      res.status(200).json({ success: true, docId, field, value });
-    } catch (error) {
-      console.error('Firebase verification or DB error:', error);
-      res.status(500).json({ error: 'Failed to update field', details: error.message });
-    }
-  });
-
-  req.on('error', (err) => {
-    res.status(500).json({ error: 'Error reading request body', details: err.message });
-  });
+  } else {
+    res.status(405).json({ error: 'Method not allowed' });
+  }
 }
