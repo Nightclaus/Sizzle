@@ -134,136 +134,135 @@ class TasksPage extends GetView<TasksController> {
                   ),
                 );
               }
-              return Obx(() => 
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: maxHeight,
-                  ),
-                  child: ListView.builder( // List builder is actually no1 op
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: controller.columns.length,
-                    itemBuilder: (context, index) {
-                      final column = controller.columns[index];
-                      return DragTarget<Task>(
-                        onWillAcceptWithDetails: (task) => true,
-                        onAccept: (task) {
-                          controller.moveTask(task, fromColumn: controller.getColumnByTask(task), toColumn: column);
-                        },
-                        builder: (_, __, ___) {
-                          return Stack(
-                            children: [
-                              Container(
-                              width: 300, // Width of each column
-                              height: column.getFullHeight,
-                              margin: const EdgeInsets.only(right: 16.0),
-                              padding: const EdgeInsets.all(12.0),
-                              decoration: BoxDecoration(
-                                color: theme.cardColor, // Or Colors.grey[200]
-                                borderRadius: BorderRadius.circular(12.0),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withAlpha(255),
-                                    spreadRadius: 1,
-                                    blurRadius: 3,
-                                    offset: const Offset(0, 2),
-                                  )
-                                ]
+              return Obx(() => ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: maxHeight,
+                ),
+                child: ListView.builder( // List builder is actually no1 op
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.all(16.0),
+                  itemCount: controller.columns.length,
+                  itemBuilder: (context, index) {
+                    final column = controller.columns[index];
+                    return DragTarget<Task>(
+                      onWillAcceptWithDetails: (task) => true,
+                      onAccept: (task) {
+                        controller.moveTask(task, fromColumn: controller.getColumnByTask(task), toColumn: column);
+                      },
+                      builder: (_, __, ___) {
+                      return Stack(
+                      children: [
+                        Container(
+                        width: 300, // Width of each column
+                        height: column.getFullHeight,
+                        margin: const EdgeInsets.only(right: 16.0),
+                        padding: const EdgeInsets.all(12.0),
+                        decoration: BoxDecoration(
+                          color: theme.cardColor, // Or Colors.grey[200]
+                          borderRadius: BorderRadius.circular(12.0),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withAlpha(255),
+                              spreadRadius: 1,
+                              blurRadius: 3,
+                              offset: const Offset(0, 2),
+                            )
+                          ]
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: 8,
+                                bottom: 8,
+                                left: 3,
+                                right: 8,
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      top: 8,
-                                      bottom: 8,
-                                      left: 3,
-                                      right: 8,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          column.title,
-                                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                  Text(
+                                    column.title,
+                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  // IconButton(icon: Icon(Icons.more_vert), onPressed: () { /* Column options */ })
+                                ],
+                              ),
+                            ),
+                            Container(
+                              height: 2,
+                              width: 270,
+                              color: theme.primaryColor,
+                            ),
+                            SizedBox(
+                              height: 7,
+                            ),
+                            Obx(() => SizedBox(  // Observe changes to tasks within this specific column
+                                height: column.getHeight,
+                                child: ListView.builder(
+                                  itemCount: column.tasks.length,
+                                  itemBuilder: (ctx, taskIndex) {
+                                    Task task = column.tasks[taskIndex];
+                                    return Draggable<Task>(
+                                      data: task, // This is the data you'll receive in DragTarget
+                                      feedback: Material( // Must be Material to show shadows etc.
+                                        color: Colors.transparent,
+                                        child: SizedBox(
+                                          width: 280, // match your card width
+                                          child: TaskCardWidget(task: task),
                                         ),
-                                        // IconButton(icon: Icon(Icons.more_vert), onPressed: () { /* Column options */ })
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    height: 2,
-                                    width: 270,
-                                    color: theme.primaryColor,
-                                  ),
-                                  SizedBox(
-                                    height: 7,
-                                  ),
-                                  Obx(() => SizedBox(  // Observe changes to tasks within this specific column
-                                      height: column.getHeight,
-                                      child: ListView.builder(
-                                        itemCount: column.tasks.length,
-                                        itemBuilder: (ctx, taskIndex) {
-                                          Task task = column.tasks[taskIndex];
-                                          return Draggable<Task>(
-                                            data: task, // This is the data you'll receive in DragTarget
-                                            feedback: Material( // Must be Material to show shadows etc.
-                                              color: Colors.transparent,
-                                              child: SizedBox(
-                                                width: 280, // match your card width
-                                                child: TaskCardWidget(task: task),
-                                              ),
-                                            ),
-                                            childWhenDragging: Opacity(
-                                              opacity: 0.5,
-                                              child: TaskCardWidget(task: task),
-                                            ),
-                                            child: TaskCardWidget(
-                                              task: task,
-                                              onTap: () {
-                                                Get.snackbar("Task Tapped", task.name);
-                                              },
-                                            ),
-                                          );
+                                      ),
+                                      childWhenDragging: Opacity(
+                                        opacity: 0.5,
+                                        child: TaskCardWidget(task: task),
+                                      ),
+                                      child: TaskCardWidget(
+                                        task: task,
+                                        onTap: () {
+                                          Get.snackbar("Task Tapped", task.name);
                                         },
                                       ),
-                                    ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 40,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(double.infinity, 40), // Make button wider
+                                  foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
+                                  backgroundColor: WidgetStateColor.resolveWith(
+                                    (Set<WidgetState> states) {
+                                      return theme.colorScheme.primary.withAlpha(200);
+                                    },
                                   ),
-                                  const SizedBox(height: 8),
-                                  SizedBox(
-                                    height: 40,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        minimumSize: const Size(double.infinity, 40), // Make button wider
-                                        foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
-                                        backgroundColor: WidgetStateColor.resolveWith(
-                                          (Set<WidgetState> states) {
-                                            return theme.colorScheme.primary.withAlpha(200);
-                                          },
-                                        ),
-                                        overlayColor: WidgetStateColor.resolveWith((Set<WidgetState> states) {return Colors.yellow.shade600;}), // ← removes splash
+                                  overlayColor: WidgetStateColor.resolveWith((Set<WidgetState> states) {return Colors.yellow.shade600;}), // ← removes splash
 
-                                        //elevation: 0, // Looks weird depending on my mental state
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8), // smaller radius
-                                        ),
-                                      ),
-                                      onPressed: () => showAddTaskDialog(context, column.id),
-                                      child: Row(children:[
-                                        const Icon(Icons.add, size: 18), 
-                                        const Text("Add a card"),
-                                      ]),
-                                    ),
-                                  )
-                                ],
-                              )
+                                  //elevation: 0, // Looks weird depending on my mental state
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8), // smaller radius
+                                  ),
+                                ),
+                                onPressed: () => showAddTaskDialog(context, column.id),
+                                child: Row(children:[
+                                  const Icon(Icons.add, size: 18), 
+                                  const Text("Add a card"),
+                                ]),
+                              ),
                             )
-                          ]);
-                        }
-                      );
-                    },
-                  )
+                          ],
+                        )
+                      )
+                        ]);
+                      }
+                    );
+                  },
                 )
+              )
               );
             },
           )
