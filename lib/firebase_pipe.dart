@@ -31,6 +31,7 @@ class FirestorePipe {
       'firebaseJWT': userJwt,
       'field': field,
       'value': value,
+      'docId': 'NONE'
     });
 
     print("scfbshibvisvbfuiibvi" + updateBody);
