@@ -3,11 +3,6 @@
 export default async function handler(req, res) {
   // NOTE: CORS headers and OPTIONS handling are now managed by vercel.json
 
-  if (req.method !== 'POST') { // Or 'PATCH' if that's what your client sends
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-  }
-
   const { firebaseJWT, field, value, docId } = req.body;
 
   if (!firebaseJWT || !field || value === undefined /*|| !docId if required */) {
