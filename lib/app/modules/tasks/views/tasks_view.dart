@@ -4,6 +4,7 @@ import 'package:sizzle/app/modules/tasks/widgets/add_task_dialog.dart';
 import '../../../controllers/auth_controller.dart'; // For sign out
 import '../../../controllers/tasks_controller.dart';
 import '../widgets/task_card_widget.dart';
+import '../../../models/task_model.dart';
 
 class TasksPage extends GetView<TasksController> {
   TasksPage({super.key});
@@ -196,13 +197,26 @@ class TasksPage extends GetView<TasksController> {
                                 child: ListView.builder(
                                   itemCount: column.tasks.length,
                                   itemBuilder: (ctx, taskIndex) {
-                                    final task = column.tasks[taskIndex];
-                                    return TaskCardWidget(
-                                      task: task,
-                                      onTap: () {
-                                        // TODO: Implement task detail view or edit dialog
-                                        Get.snackbar("Task Tapped", task.name, snackPosition: SnackPosition.BOTTOM);
-                                      },
+                                    Task task = column.tasks[taskIndex];
+                                    return Draggable<Task>(
+                                      data: task, // This is the data you'll receive in DragTarget
+                                      feedback: Material( // Must be Material to show shadows etc.
+                                        color: Colors.transparent,
+                                        child: SizedBox(
+                                          width: 280, // match your card width
+                                          child: TaskCardWidget(task: task),
+                                        ),
+                                      ),
+                                      childWhenDragging: Opacity(
+                                        opacity: 0.5,
+                                        child: TaskCardWidget(task: task),
+                                      ),
+                                      child: TaskCardWidget(
+                                        task: task,
+                                        onTap: () {
+                                          Get.snackbar("Task Tapped", task.name);
+                                        },
+                                      ),
                                     );
                                   },
                                 ),
