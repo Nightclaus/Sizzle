@@ -84852,7 +84852,7 @@ r=$.aQ
 if(r==null)r=$.aQ=B.F
 r.Vx(s,!0,q,t.nT)
 s=$.aEx()
-return new A.yF("/tasks","My Auth App",A.qp(q,A.axw(B.a2,q,q,B.CG),B.ju,!0,A.aBS(A.aL())),!1,s,q)}}
+return new A.yF("/tasks","Sizzle",A.qp(q,A.axw(B.a2,q,q,B.CG),B.ju,!0,A.aBS(A.aL())),!1,s,q)}}
 A.aca.prototype={
 WI(){var s=this.a5C()
 if(s.length!==16)throw A.f(A.e8("The length of the Uint8list returned by the custom RNG must be 16."))

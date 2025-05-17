@@ -1,7 +1,15 @@
+//import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart'; // Add uuid to pubspec.yaml: `flutter pub add uuid`
 import '../models/task_column_model.dart';
 import '../models/task_model.dart';
+
+import '../../../../firebase_pipe.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+Future<String?> fetchIdToken() async {
+  return await FirebaseAuth.instance.currentUser?.getIdToken();
+}
 
 class TasksController extends GetxController {
   var columns = <TaskColumn>[].obs;
@@ -101,7 +109,14 @@ class TasksController extends GetxController {
   }
 
 
-  void _addDefaultColumns() { // Testcase
+  void _addDefaultColumns() async { // Testcase
+    String token = await fetchIdToken() ?? '';
+    print(token);
+    FirestorePipe pipe = FirestorePipe(jwt: token);
+    String res = await pipe.testFirestoreFlow();
+    print('HII');
+    print(res);
+
     addColumn("Todo");
     addColumn("Completed");
 
