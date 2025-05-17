@@ -91,6 +91,15 @@ class TasksController extends GetxController {
     }
   }
 
+  void moveTask(Task task, {required TaskColumn fromColumn, required TaskColumn toColumn}) {
+    fromColumn.tasks.remove(task);
+    toColumn.tasks.add(task);
+  }
+
+  TaskColumn getColumnByTask(Task task) {
+  return columns.firstWhere((col) => col.tasks.contains(task));
+  }
+
 
   void _addDefaultColumns() { // Testcase
     addColumn("Todo");
