@@ -25,7 +25,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     Get.put(AuthController(), permanent: true); // Ensure session manager is always active, tho it means that the binding doc is kinda uselesss
     return GetMaterialApp(
-      title: "My Auth App",
+      title: "Sizzle",
       initialRoute: AppPages.INITIAL, // Or check auth state here to decide
       getPages: AppPages.routes,
       theme: ThemeData(
