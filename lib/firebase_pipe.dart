@@ -1,8 +1,8 @@
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
-// Use 10.0.2.2 for Android Emulator, or localhost for iOS/simulator
-const String baseUrl = 'http://localhost:3000';
+String baseUrl =  dotenv.env['API_URL'] ?? '';
 
 class FirestorePipe {
   final String jwt;
@@ -15,7 +15,7 @@ class FirestorePipe {
 
     try {
       // Step 1: Update field
-      final updateResponse = await http.patch(
+      final updateResponse = await http.post(
         Uri.parse('$baseUrl/update-field'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
