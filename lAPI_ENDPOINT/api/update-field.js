@@ -15,6 +15,15 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 export default async function handler(req, res) {
+  let body = req.body;
+  if (!body) {
+    // Try to parse manually (if req.body undefined)
+    try {
+      body = JSON.parse(req.rawBody || req.bodyRaw || '{}');
+    } catch {
+      return res.status(400).json({ error: 'Invalid JSON body' });
+    }
+  }
   const { firebaseJWT, field, value } = req.body;
 
   try {
