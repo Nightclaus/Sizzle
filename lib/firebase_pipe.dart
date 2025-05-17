@@ -15,7 +15,7 @@ class FirestorePipe {
 
     try {
       // Step 1: Update field
-      final updateResponse = await http.patch(
+      final updateResponse = await http.post(
         Uri.parse('$baseUrl/update-field'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
