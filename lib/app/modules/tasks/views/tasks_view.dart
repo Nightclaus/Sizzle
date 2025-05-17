@@ -15,14 +15,28 @@ class TasksPage extends GetView<TasksController> {
   }
 
   void _showAddColumnDialog(BuildContext context) {
+    final theme = Theme.of(context);
     final TextEditingController columnTitleController = TextEditingController();
     Get.dialog(
       AlertDialog(
         title: const Text("Add New Column"),
-        content: TextField(
-          controller: columnTitleController,
-          decoration: const InputDecoration(hintText: "Column Title"),
-          autofocus: true,
+        backgroundColor: Colors.white,
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: 120,
+            maxWidth: 200
+          ), 
+          child:Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Get started by setting the name of the new group, they can hold as many tasks as you need!"),
+              TextField(
+                controller: columnTitleController,
+                decoration: const InputDecoration(hintText: "Column Title"),
+                autofocus: true,
+              )
+            ]
+          )
         ),
         actions: [
           TextButton(
@@ -30,6 +44,10 @@ class TasksPage extends GetView<TasksController> {
             child: const Text("Cancel"),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
+              backgroundColor: theme.primaryColor,
+            ),
             onPressed: () {
               if (columnTitleController.text.trim().isNotEmpty) {
                 controller.addColumn(columnTitleController.text.trim());
