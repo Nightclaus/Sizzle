@@ -1,30 +1,24 @@
-import admin from 'firebase-admin';
-
-// Initialize Firebase Admin once
-if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(
-    Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf-8')
-  );
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id,
-  });
-}
-
-const db = admin.firestore();
-
 export default async function handler(req, res) {
-  try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    console.log('✅ Body received:', body);
+  // ✅ CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Use '*' or your Flutter Web domain
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    const { firebaseJWT, field, value } = body;
-
-    // Your validation and update logic here
-    return res.status(200).json({ value });
-  } catch (err) {
-    console.error('❌ JSON parse error:', err);
-    return res.status(400).json({ error: 'Invalid JSON or request' });
+  // ✅ Handle preflight OPTIONS request
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
+
+  // ✅ Your actual logic here
+  const { firebaseJWT, field, value } = req.body;
+
+  if (!firebaseJWT || !field || !value) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  // Simulate a database update or pass to Firestore, etc.
+  console.log(`Updating ${field} = ${value} for JWT: ${firebaseJWT}`);
+
+  return res.status(200).json({ message: 'Field updated' });
 }
