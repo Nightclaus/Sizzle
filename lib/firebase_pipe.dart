@@ -33,6 +33,8 @@ class FirestorePipe {
       'value': value,
     });
 
+    print("scfbshibvisvbfuiibvi" + updateBody);
+
     final getBody = jsonEncode({
       'firebaseJWT': userJwt,
       'field': field,
