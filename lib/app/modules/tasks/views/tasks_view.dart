@@ -5,6 +5,7 @@ import '../../../controllers/auth_controller.dart'; // For sign out
 import '../../../controllers/tasks_controller.dart';
 import '../widgets/task_card_widget.dart';
 import '../../../models/task_model.dart';
+import 'package:dotted_border/dotted_border.dart';
 
 class TasksPage extends GetView<TasksController> {
   TasksPage({super.key});
@@ -63,6 +64,14 @@ class TasksPage extends GetView<TasksController> {
         ],
       ),
     );
+  }
+
+  String getOriginId(List<Task?> candidateData) {
+    try {
+      return controller.getColumnByTask(candidateData[0]!).id;
+    } catch (e) {
+      return '';
+    }
   }
 
   @override
@@ -149,12 +158,15 @@ class TasksPage extends GetView<TasksController> {
                       onAccept: (task) {
                         controller.moveTask(task, fromColumn: controller.getColumnByTask(task), toColumn: column);
                       },
-                      builder: (_, __, ___) {
+                      builder: (_, candidateData, ___) {
+                        String originId = getOriginId(candidateData);
+                        print("Original" + originId + "Not" + column.id);
+                        final isBeingHovered = candidateData.isNotEmpty;
                       return Stack(
                       children: [
-                        Container(
+                        Obx(() => Container(
                         width: 300, // Width of each column
-                        height: column.getFullHeight,
+                        height: (isBeingHovered && column.tasks.isEmpty) ? 275 : column.getFullHeight, // Condition for making everying larger
                         margin: const EdgeInsets.only(right: 16.0),
                         padding: const EdgeInsets.all(12.0),
                         decoration: BoxDecoration(
@@ -199,8 +211,36 @@ class TasksPage extends GetView<TasksController> {
                               height: 7,
                             ),
                             Obx(() => SizedBox(  // Observe changes to tasks within this specific column
-                                height: column.getHeight,
-                                child: ListView.builder(
+                                height: (isBeingHovered && column.tasks.isEmpty && originId != column.id) ? 150 : column.getHeight, // Just column section // Additional to stop fixed length if it come from the column (Not possible but good precaution)
+                                child: (isBeingHovered && originId != column.id) ?  // #1 HATER RH
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: 100,
+                                  ),
+                                  child: DottedBorder(
+                                    dashPattern: [6, 3], // 6px dash, 3px gap
+                                    color: Colors.grey,
+                                    strokeWidth: 2,
+                                    borderType: BorderType.RRect,
+                                    radius: Radius.circular(12),
+                                    child: Container(
+                                      width: 300, 
+                                      decoration: BoxDecoration(
+                                        color: theme.primaryColor.withAlpha(10),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.add),
+                                            Text("Move here!")
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  )
+                                ) : ListView.builder(
                                   itemCount: column.tasks.length,
                                   itemBuilder: (ctx, taskIndex) {
                                     Task task = column.tasks[taskIndex];
@@ -257,7 +297,7 @@ class TasksPage extends GetView<TasksController> {
                           ],
                         )
                       )
-                        ]);
+                    )]);
                       }
                     );
                   },
