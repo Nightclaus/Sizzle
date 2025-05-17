@@ -3,7 +3,7 @@
 // import { db, decodeFirebaseToken, defaultCollectionName } from './_utils/firebaseAdmin';
 
 export default async function handler(req, res) {
-    // --- AGGRESSIVE CORS HEADERS - APPLY TO EVERY RESPONSE ---
+    // --- AGGRESSIVE CORS HEADERS - APPLY TO EVERY RESPONSE ---/
     // (You can make this a shared function later if you prefer)
     console.log(`[/api/get-field] Setting aggressive CORS headers for ${req.method} request`);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
