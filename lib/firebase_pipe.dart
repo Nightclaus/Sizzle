@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
-String baseUrl =  dotenv.env['API_URL'] ?? '';
+String baseUrl = dotenv.env['API_URL'] ?? '';
 
 class FirestorePipe {
   final String jwt;
@@ -14,9 +14,8 @@ class FirestorePipe {
     final value = 'Hello from Flutter';
 
     try {
-      print("HHH "+userJwt);
-      // Step 1: Update field
-      final updateResponse = await http.patch(
+      // Step 1: Update field (using POST to match backend)
+      final updateResponse = await http.post(
         Uri.parse('$baseUrl/update-field'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -30,7 +29,7 @@ class FirestorePipe {
         return 'Update failed: ${updateResponse.body}';
       }
 
-      // Step 2: Retrieve field
+      // Step 2: Retrieve field (assuming get-field endpoint expects POST with firebaseJWT + field)
       final getResponse = await http.post(
         Uri.parse('$baseUrl/get-field'),
         headers: {'Content-Type': 'application/json'},
