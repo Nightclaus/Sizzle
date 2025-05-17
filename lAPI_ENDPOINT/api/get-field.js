@@ -1,58 +1,74 @@
-import admin from 'firebase-admin';
+// /api/get-field.js
+import { db, decodeFirebaseToken, defaultCollectionName } from './_utils/firebaseAdmin'; // Adjust path if needed
 
-// Initialize Firebase Admin once
-if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(
-    Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf-8')
-  );
+export default async function handler(req, res) {
+  // CORS and OPTIONS are handled by vercel.json
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id,
-  });
-}
+  if (req.method !== 'POST') { // Your Flutter client uses POST for this
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+  }
 
-const db = admin.firestore();
+  const body = req.body;
+  console.log('/api/get-field - Parsed req.body:', JSON.stringify(body));
 
-export default function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  let rawBody = '';
+  if (!body || Object.keys(body).length === 0) {
+    return res.status(400).json({ error: 'Request body is missing or empty.' });
+  }
 
-  req.on('data', (chunk) => {
-    rawBody += chunk;
-  });
+  const { firebaseJWT, field } = body;
 
-  req.on('end', async () => {
-    let body;
-    try {
-      body = JSON.parse(rawBody);
-    } catch (err) {
-      return res.status(400).json({ error: 'Invalid JSON', details: err.message });
+  if (firebaseJWT === undefined || field === undefined) {
+    return res.status(400).json({ error: 'Missing required fields: firebaseJWT, field.' });
+  }
+  if (typeof field !== 'string' || field.trim() === "") {
+    return res.status(400).json({ error: 'Invalid field (must be a non-empty string)' });
+  }
+
+  if (!defaultCollectionName) {
+    console.error("/api/get-field: DEFAULT_COLLECTION_NAME is not configured.");
+    return res.status(500).json({ error: 'Server configuration error: Collection name not set.' });
+  }
+  if (!db) {
+    console.error("/api/get-field: Firestore DB instance is not available.");
+    return res.status(503).json({ error: 'Firestore (Admin SDK) not initialized.' });
+  }
+
+  try {
+    const decodedToken = await decodeFirebaseToken(firebaseJWT);
+    if (!decodedToken || !decodedToken.uid) {
+      return res.status(401).json({ error: 'Authentication failed. Invalid or expired token.' });
+    }
+    const userUid = decodedToken.uid; // This is your docId
+
+    const docRef = db.collection(defaultCollectionName).doc(userUid);
+    const docSnapshot = await docRef.get();
+
+    if (!docSnapshot.exists()) {
+      console.log(`Document not found for UID: ${userUid}, collection: ${defaultCollectionName}`);
+      return res.status(404).json({ error: `Document for user not found.` });
     }
 
-    const { firebaseJWT, field, value } = body;
-
-    if (!firebaseJWT || !field || value === undefined) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    const data = docSnapshot.data();
+    if (data === undefined || !(field in data)) { // Check if data is undefined or field doesn't exist
+      console.log(`Field '${field}' not found in document for UID: ${userUid}`);
+      return res.status(404).json({ error: `Field '${field}' not found in user's document.` });
     }
 
-    try {
-      const decoded = await admin.auth().verifyIdToken(firebaseJWT);
-      const docId = decoded.uid;
-      const docRef = db.collection(process.env.DEFAULT_COLLECTION_NAME).doc(docId);
+    console.log(`Retrieved field '${field}' for user UID '${userUid}'`);
+    return res.status(200).json({
+      success: true,
+      message: `Retrieved field '${field}'.`,
+      docId: userUid,
+      field: field,
+      value: data[field],
+    });
 
-      await docRef.set({ [field]: value }, { merge: true });
-
-      res.status(200).json({ success: true, docId, field, value });
-    } catch (error) {
-      console.error('Firebase verification or DB error:', error);
-      res.status(500).json({ error: 'Failed to update field', details: error.message });
+  } catch (error) {
+    console.error('Error in /api/get-field:', error.name, error.message, error.code);
+    if (error.code && error.code.startsWith('auth/')) {
+        return res.status(401).json({ error: 'Authentication processing error.', details: error.message });
     }
-  });
-
-  req.on('error', (err) => {
-    res.status(500).json({ error: 'Error reading request body', details: err.message });
-  });
+    return res.status(500).json({ error: 'Internal server error while retrieving Firestore field.', details: error.message });
+  }
 }
