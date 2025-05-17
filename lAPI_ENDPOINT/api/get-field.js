@@ -2,13 +2,6 @@
 import { db, decodeFirebaseToken, defaultCollectionName } from './_utils/firebaseAdmin'; // Adjust path if needed
 
 export default async function handler(req, res) {
-  // CORS and OPTIONS are handled by vercel.json
-
-  if (req.method !== 'POST') { // Your Flutter client uses POST for this
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-  }
-
   const body = req.body;
   console.log('/api/get-field - Parsed req.body:', JSON.stringify(body));
 
