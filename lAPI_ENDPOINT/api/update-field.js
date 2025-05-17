@@ -15,6 +15,10 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   let body = req.body;
   if (!body) {
     // Try to parse manually (if req.body undefined)
@@ -24,7 +28,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid JSON body' });
     }
   }
-  const { firebaseJWT, field, value } = req.body;
+  const { firebaseJWT, field, value } = body;
 
   try {
     const decoded = await admin.auth().verifyIdToken(firebaseJWT);
