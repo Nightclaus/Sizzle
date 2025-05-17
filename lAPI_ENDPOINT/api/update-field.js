@@ -28,7 +28,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid JSON body' });
     }
   }
-  const { firebaseJWT, field, value } = body;
+  const { firebaseJWT, field, value } = JSON.parse(req.body);
 
   try {
     const decoded = await admin.auth().verifyIdToken(firebaseJWT);

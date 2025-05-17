@@ -14,8 +14,9 @@ class FirestorePipe {
     final value = 'Hello from Flutter';
 
     try {
+      print("HHH "+userJwt);
       // Step 1: Update field
-      final updateResponse = await http.post(
+      final updateResponse = await http.patch(
         Uri.parse('$baseUrl/update-field'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({

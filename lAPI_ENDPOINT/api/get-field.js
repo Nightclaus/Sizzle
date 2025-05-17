@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     }
   }
 
-  const { firebaseJWT, field, value } = body;  // use `body` here, not req.body
+  const { firebaseJWT, field, value } = JSON.parse(req.body);  // use `body` here, not req.body
 
   try {
     const decoded = await admin.auth().verifyIdToken(firebaseJWT);
