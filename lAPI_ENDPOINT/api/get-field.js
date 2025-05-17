@@ -1,27 +1,47 @@
+import admin from 'firebase-admin';
+import { db } from './yourFirebaseAdminInit'; // adjust as needed
+
 export default async function handler(req, res) {
-  let body = req.body;
-  if (!body) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  let rawBody = '';
+
+  // Collect raw data chunks
+  req.on('data', (chunk) => {
+    rawBody += chunk;
+  });
+
+  req.on('end', async () => {
+    let body;
     try {
-      body = JSON.parse(req.rawBody || req.bodyRaw || '{}');
+      body = JSON.parse(rawBody);
     } catch {
       return res.status(400).json({ error: 'Invalid JSON body' });
     }
-  }
 
-  const { firebaseJWT, field, value } = JSON.parse(req.body);  // use `body` here, not req.body
+    const { firebaseJWT, field, value } = body;
 
-  try {
-    const decoded = await admin.auth().verifyIdToken(firebaseJWT);
-    const docId = decoded.uid;
+    if (!firebaseJWT || !field || value === undefined) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
 
-    const docRef = db.collection(process.env.DEFAULT_COLLECTION_NAME).doc(docId);
+    try {
+      const decoded = await admin.auth().verifyIdToken(firebaseJWT);
+      const docId = decoded.uid;
+      const docRef = db.collection(process.env.DEFAULT_COLLECTION_NAME).doc(docId);
 
-    // Use set with merge: true to update or add the field
-    await docRef.set({ [field]: value }, { merge: true });
+      await docRef.set({ [field]: value }, { merge: true });
 
-    return res.status(200).json({ success: true, docId, field, value });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Failed to update field', details: err.message });
-  }
+      return res.status(200).json({ success: true, docId, field, value });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Failed to update field', details: err.message });
+    }
+  });
+
+  req.on('error', (err) => {
+    return res.status(500).json({ error: 'Error reading request body', details: err.message });
+  });
 }
