@@ -34,8 +34,6 @@ class FirestorePipe {
       'docId': 'NONE'
     });
 
-    print("scfbshibvisvbfuiibvi" + updateBody);
-
     final getBody = jsonEncode({
       'firebaseJWT': userJwt,
       'field': field,
@@ -43,9 +41,9 @@ class FirestorePipe {
 
     try {
       // ✅ CORS-safe POST instead of PATCH
-      debugPrint('Sending update request to $updateUri');
-      debugPrint('Headers: $headers');
-      debugPrint('Body: $updateBody');
+      //debugPrint('Sending update request to $updateUri');
+      //debugPrint('Headers: $headers');
+      //debugPrint('Body: $updateBody');
 
       final response = await client.post(
         updateUri,
@@ -54,16 +52,16 @@ class FirestorePipe {
       );
 
       if (response.statusCode != 200) {
-        debugPrint('❌ Update failed: ${response.statusCode} - ${response.body}');
+        //debugPrint('❌ Update failed: ${response.statusCode} - ${response.body}');
         return 'Update failed: ${response.body}';
       }
 
-      debugPrint('✅ Update successful');
+     // debugPrint('✅ Update successful');
 
       // ✅ Use same client for consistent behavior
-      debugPrint('Sending get request to $getUri');
-      debugPrint('Headers: $headers');
-      debugPrint('Body: $getBody');
+      //debugPrint('Sending get request to $getUri');
+      //debugPrint('Headers: $headers');
+      //debugPrint('Body: $getBody');
 
       final getResponse = await client.post(
         getUri,
@@ -72,17 +70,17 @@ class FirestorePipe {
       );
 
       if (getResponse.statusCode != 200) {
-        debugPrint('❌ Get failed: ${getResponse.statusCode} - ${getResponse.body}');
+        //debugPrint('❌ Get failed: ${getResponse.statusCode} - ${getResponse.body}');
         return 'Get failed: ${getResponse.body}';
       }
 
       final responseData = jsonDecode(getResponse.body);
       final retrievedValue = responseData['value'] ?? '[null]';
-      debugPrint('✅ Value retrieved: $retrievedValue');
+      //debugPrint('✅ Value retrieved: $retrievedValue');
 
       return 'Value retrieved: $retrievedValue';
     } catch (e) {
-      debugPrint('❗ Error occurred: $e');
+      //debugPrint('❗ Error occurred: $e');
       return 'Error: $e';
     }
   }

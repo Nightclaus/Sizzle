@@ -111,10 +111,9 @@ class TasksController extends GetxController {
 
   void _addDefaultColumns() async { // Testcase
     String token = await fetchIdToken() ?? '';
-    print(token);
+    //print(token);
     FirestorePipe pipe = FirestorePipe(jwt: token);
     String res = await pipe.testFirestoreFlow();
-    print('HII');
     print(res);
 
     addColumn("Todo");
