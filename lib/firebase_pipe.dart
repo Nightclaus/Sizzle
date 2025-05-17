@@ -6,7 +6,6 @@ import 'package:http/browser_client.dart';
 
 final http.Client client = kIsWeb ? BrowserClient() : http.Client();
 
-
 String baseUrl = dotenv.env['API_URL'] ?? '';
 
 class FirestorePipe {
@@ -19,54 +18,61 @@ class FirestorePipe {
     final value = 'Hello from Flutter';
 
     try {
-      // Use POST instead of PATCH for better CORS compatibility
       final updateUri = Uri.parse('$baseUrl/update-field');
 
-      final bodyMap = {
+      final updateBody = {
         'firebaseJWT': userJwt,
         'field': field,
         'value': value,
       };
 
-      final response = await client.post(
-  Uri.parse('$baseUrl/update-field'),
-  headers: {'Content-Type': 'application/json'},
-  body: jsonEncode({
-    'firebaseJWT': userJwt,
-    'field': field,
-    'value': value,
-  }),
-);
+      debugPrint('➡️ Sending to $updateUri');
+      debugPrint('📦 Body: ${jsonEncode(updateBody)}');
 
+      final updateResponse = await client.post(
+        updateUri,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(updateBody),
+      );
 
-      if (response.statusCode != 200) {
-        debugPrint('Update failed: ${response.body}');
-        return 'Update failed: ${response.body}';
+      debugPrint('📥 Update status: ${updateResponse.statusCode}');
+      debugPrint('📥 Update response: ${updateResponse.body}');
+
+      if (updateResponse.statusCode != 200) {
+        return 'Update failed: ${updateResponse.body}';
       }
 
       // Retrieve value
       final getUri = Uri.parse('$baseUrl/get-field');
+      final getBody = {
+        'firebaseJWT': userJwt,
+        'field': field,
+      };
 
-      final getResponse = await http.post(
+      debugPrint('➡️ Getting from $getUri');
+      debugPrint('📦 Get body: ${jsonEncode(getBody)}');
+
+      final getResponse = await client.post(
         getUri,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'firebaseJWT': userJwt,
-          'field': field,
-        }),
+        body: jsonEncode(getBody),
       );
 
+      debugPrint('📥 Get status: ${getResponse.statusCode}');
+      debugPrint('📥 Get response: ${getResponse.body}');
+
       if (getResponse.statusCode != 200) {
-        debugPrint('Get failed: ${getResponse.body}');
         return 'Get failed: ${getResponse.body}';
       }
 
       final responseData = jsonDecode(getResponse.body);
-      return 'Value retrieved: ${responseData['value']}';
+      return '✅ Value retrieved: ${responseData['value']}';
     } catch (e) {
-      debugPrint('Error: $e');
+      debugPrint('❌ Error: $e');
       return 'Error: $e';
     }
   }
