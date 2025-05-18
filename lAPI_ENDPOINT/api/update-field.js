@@ -16,11 +16,6 @@ export default async function handler(req, res) {
 
   console.log(`[/api/update-field] Request: ${req.method} ${req.url}`);
 
-  if (req.method !== 'POST') { // Your Flutter client uses POST
-    res.setHeader('Allow', ['POST', 'OPTIONS']); // Inform client which methods are allowed
-    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-  }
-
   const body = req.body;
   console.log('[/api/update-field] Parsed req.body:', JSON.stringify(body));
 
