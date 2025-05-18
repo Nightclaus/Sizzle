@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   console.log(`[update-field] Request received: Method=${req.method}, URL=${req.url}`);
   console.log('[update-field] Request Headers:', JSON.stringify(req.headers, null, 2));
 
-  if (req.method === 'OPTIONS') {
+  if (req.method === 'OPTIONS') { // SOB
         console.log('[update-field] Responding to OPTIONS preflight request with 204.');
         return res.status(204).end();
     }
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     if (!decodedToken || !decodedToken.uid) {
       return res.status(401).json({ error: 'Authentication failed. Invalid or expired token.' });
     }
-    const userUid = decodedToken; // This is your effective docId
+    const userUid = decodedToken.uid; // This is your effective docId
 
     const docRef = db.collection(defaultCollectionName).doc(userUid);
     const currentDoc = await docRef.get(); // Check if doc exists for accurate messaging
