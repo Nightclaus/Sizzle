@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     if (!decodedToken || !decodedToken.uid) {
       return res.status(401).json({ error: 'Authentication failed. Invalid or expired token.' });
     }
-    const userUid = decodedToken.uid; // This is your effective docId
+    const userUid = decodedToken; // This is your effective docId
     console.log("DECODED TOKEN" + decodedToken);
     console.log("UID" + decodedToken.uid);
     console.log("Collection" + defaultCollectionName)
