@@ -16,6 +16,7 @@ if (!admin.apps.length) {
       credential: admin.credential.cert(serviceAccount),
       projectId: projectId,
     });
+    console.log("Project ID:", projectId);
     console.log('Firebase Admin SDK initialized successfully (shared).');
   } catch (error) {
     console.error('FATAL ERROR initializing Firebase Admin SDK (shared):', error.message);
@@ -23,7 +24,6 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
-console.log("Project ID:", projectId);
 const auth = admin.auth();
 
 async function decodeFirebaseToken(idTokenString) {
