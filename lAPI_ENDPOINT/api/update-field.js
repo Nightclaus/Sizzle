@@ -12,6 +12,11 @@ export default async function handler(req, res) {
 
   console.log(`[update-field] Request received: Method=${req.method}, URL=${req.url}`);
   console.log('[update-field] Request Headers:', JSON.stringify(req.headers, null, 2));
+
+  if (req.method === 'OPTIONS') {
+        console.log('[update-field] Responding to OPTIONS preflight request with 204.');
+        return res.status(204).end();
+    }
   // ---
 
   console.log(`[/api/update-field] Request: ${req.method} ${req.url}`);
