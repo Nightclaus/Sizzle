@@ -23,6 +23,7 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
+console.log("Project ID:", projectId);
 const auth = admin.auth();
 
 async function decodeFirebaseToken(idTokenString) {
