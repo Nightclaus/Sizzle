@@ -11,39 +11,37 @@ String baseUrl = dotenv.env['API_URL'] ?? '';
 
 class FirestorePipe {
   final String jwt;
-  const FirestorePipe({required this.jwt});
+  final String field = 'exampleField';
+  final String value = 'Hello from Flutter';
 
-  Future<String> testFirestoreFlow() async {
-    final userJwt = jwt;
-    final field = 'exampleField';
-    final value = 'Hello from Flutter';
+  late Map<String, String> headers;
+  late Uri updateUri;
+  late Uri getUri;
+  late String updateBody;
+  late String getBody;
 
-    final updateUri = Uri.parse('$baseUrl/update-field');
-    final getUri = Uri.parse('$baseUrl/get-field');
-
-    final headers = {
+  FirestorePipe({required this.jwt}) {
+    updateUri = Uri.parse('$baseUrl/update-field');
+    getUri = Uri.parse('$baseUrl/get-field');
+    headers = {
       'Content-Type': 'application/json',
-      // You can add more headers here if Vercel expects CORS-specific ones
       'Accept': 'application/json',
     };
-
-    final updateBody = jsonEncode({
-      'firebaseJWT': userJwt,
+    updateBody = jsonEncode({
+      'firebaseJWT': jwt,
       'field': field,
       'value': value,
       'docId': 'NONE'
     });
-
-    final getBody = jsonEncode({
-      'firebaseJWT': userJwt,
+    getBody = jsonEncode({
+      'firebaseJWT': jwt,
       'field': field,
     });
+  }
 
+  Future<bool> updateValue() async {
     try {
-      // ✅ CORS-safe POST instead of PATCH
-      //debugPrint('Sending update request to $updateUri');
-      //debugPrint('Headers: $headers');
-      //debugPrint('Body: $updateBody');
+      debugPrint('[o] Sending update request to $updateUri');
 
       final response = await client.post(
         updateUri,
@@ -52,17 +50,22 @@ class FirestorePipe {
       );
 
       if (response.statusCode != 200) {
-        //debugPrint('❌ Update failed: ${response.statusCode} - ${response.body}');
-        return 'Update failed: ${response.body}';
+        debugPrint('[x] Update failed: ${response.statusCode} - ${response.body}');
+        debugPrint('Update failed: ${response.body}');
+        return false;
+      } else {
+        debugPrint('[o] Update successful');
+        return true;
       }
+    } catch (e) {
+      debugPrint('Error occurred: $e');
+      return false;
+    }
+  }
 
-     // debugPrint('✅ Update successful');
-
-      // ✅ Use same client for consistent behavior
-      //debugPrint('Sending get request to $getUri');
-      //debugPrint('Headers: $headers');
-      //debugPrint('Body: $getBody');
-
+  Future<String> getValue() async {
+    try{
+      debugPrint('Sending get request to $getUri');
       final getResponse = await client.post(
         getUri,
         headers: headers,
@@ -70,18 +73,23 @@ class FirestorePipe {
       );
 
       if (getResponse.statusCode != 200) {
-        //debugPrint('❌ Get failed: ${getResponse.statusCode} - ${getResponse.body}');
+        debugPrint('[x] Get failed: ${getResponse.statusCode} - ${getResponse.body}');
         return 'Get failed: ${getResponse.body}';
       }
 
       final responseData = jsonDecode(getResponse.body);
       final retrievedValue = responseData['value'] ?? '[null]';
-      //debugPrint('✅ Value retrieved: $retrievedValue');
+      debugPrint('[o] Value retrieved: $retrievedValue');
 
       return 'Value retrieved: $retrievedValue';
     } catch (e) {
-      //debugPrint('❗ Error occurred: $e');
+      debugPrint('Error occurred: $e');
       return 'Error: $e';
     }
+  }
+
+  Future<String> testFirestoreFlow() {
+    updateValue();
+    return getValue();
   }
 }
