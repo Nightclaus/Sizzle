@@ -24,9 +24,18 @@ class TasksController extends GetxController {
     }
   }
 
-  void addColumn(String title, [String? uid]) {
+  void addColumn(String title, [String? uid]) async {
+    String userToken = await fetchIdToken() ?? '';
+    FirestorePipe pipe = FirestorePipe(jwt: userToken);
+
     uid ??= _uuid.v4();
     if (title.trim().isEmpty) return;
+    pipe.updateValue("Dashboard", {
+      uid: {
+        "name": title,
+        "tasks": {}
+      }
+    });
     final newColumn = TaskColumn(id: uid, title: title.trim());
     columns.add(newColumn);
   }
@@ -147,34 +156,5 @@ class TasksController extends GetxController {
         );
       });
     });
-    
-    /*
-    addColumn("Todo");
-    addColumn("Completed");
-
-    // Add a sample task
-    if (columns.isNotEmpty && columns.first.tasks.isEmpty) {
-      addTaskToColumn(
-        columns.first.id,
-        Task(
-          id: _uuid.v4(),
-          name: "Setup project environment",
-          description: "Install Flutter, VS Code, and necessary plugins.",
-          tag: TaskTag.work,
-          importance: TaskImportance.high,
-        ),
-      );
-       addTaskToColumn(
-        columns.first.id,
-        Task(
-          id: _uuid.v4(),
-          name: "Plan passion project",
-          description: "Brainstorm ideas for a fun side project.",
-          tag: TaskTag.passion,
-          importance: TaskImportance.medium,
-        ),
-      );
-    }
-    */
   }
 }
