@@ -2,7 +2,6 @@
 import { db, decodeFirebaseToken, defaultCollectionName } from './_utils/firebaseAdmin'; // Adjust path if needed
 
 export default async function handler(req, res) {
-  // --- Assuming CORS and OPTIONS are handled by vercel.json ---
   console.log(`[update-field] Setting aggressive CORS headers for ${req.method} request to ${req.url}`);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*'); // Most permissive
@@ -85,7 +84,7 @@ export default async function handler(req, res) {
     if (error.code && error.code.startsWith('auth/')) {
         return res.status(401).json({ error: 'Authentication processing error.', details: error.message });
     }
-    // Add more specific Firestore error checks if needed
+    // Note: Add more specific Firestore error checks if needed
     return res.status(500).json({ error: 'Internal server error while updating Firestore.', details: error.message });
   }
 }
