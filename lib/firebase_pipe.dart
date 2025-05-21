@@ -11,14 +11,10 @@ String baseUrl = dotenv.env['API_URL'] ?? '';
 
 class FirestorePipe {
   final String jwt;
-  final String field = 'exampleField';
-  final String value = 'Hello from Flutter';
 
   late Map<String, String> headers;
   late Uri updateUri;
   late Uri getUri;
-  late String updateBody;
-  late String getBody;
 
   FirestorePipe({required this.jwt}) {
     updateUri = Uri.parse('$baseUrl/update-field');
@@ -27,19 +23,15 @@ class FirestorePipe {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    updateBody = jsonEncode({
+  }
+
+  Future<bool> updateValue(String field, String value) async {
+    final updateBody = jsonEncode({
       'firebaseJWT': jwt,
       'field': field,
       'value': value,
       'docId': 'NONE'
     });
-    getBody = jsonEncode({
-      'firebaseJWT': jwt,
-      'field': field,
-    });
-  }
-
-  Future<bool> updateValue() async {
     try {
       debugPrint('[o] Sending update request to $updateUri');
 
@@ -63,7 +55,11 @@ class FirestorePipe {
     }
   }
 
-  Future<String> getValue() async {
+  Future<dynamic> getValue(String field) async {
+    final getBody = jsonEncode({
+      'firebaseJWT': jwt,
+      'field': field,
+    });
     try{
       debugPrint('Sending get request to $getUri');
       final getResponse = await client.post(
@@ -88,8 +84,10 @@ class FirestorePipe {
     }
   }
 
-  Future<String> testFirestoreFlow() {
-    updateValue();
-    return getValue();
+  Future<dynamic> testFirestoreFlow() {
+    const testField = "Testfield";
+    const testValue = "test_value";
+    updateValue(testField, testValue);
+    return getValue(testField);
   }
 }

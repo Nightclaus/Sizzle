@@ -20,7 +20,7 @@ class TasksController extends GetxController {
     super.onInit();
     // Load initial data or leave empty
     if (columns.isEmpty) {
-      _addDefaultColumns();
+      _addDefaultColumns(); // Retrieve user data
     }
   }
 
@@ -110,12 +110,36 @@ class TasksController extends GetxController {
 
 
   void _addDefaultColumns() async { // Testcase
-    String token = await fetchIdToken() ?? '';
-    //print(token);
-    FirestorePipe pipe = FirestorePipe(jwt: token);
+    String userToken = await fetchIdToken() ?? '';
+    FirestorePipe pipe = FirestorePipe(jwt: userToken);
+
+    /*
     String res = await pipe.testFirestoreFlow();
     print(res);
+    */
 
+    String dashboard = "Dashboard";
+
+    Map<String, Map> allColumns = await pipe.getValue(dashboard);
+    allColumns.forEach((key, value) async {
+      Map<String, dynamic> columnData = await pipe.getValue(dashboard);
+        addColumn(columnData["name"]);
+        Map<String, dynamic> tasksInColumn = columnData["tasks"];
+        tasksInColumn.forEach((taskUid, map) {
+          addTaskToColumn(
+            columnData["uid"], 
+            Task(
+              id: taskUid, // map["uid"]
+              name: map["name"],
+              description: map["description"],
+              tag: map["task_tag"],
+              importance: map["task_importance"]
+            )
+          );
+        });
+    });
+    
+    /*
     addColumn("Todo");
     addColumn("Completed");
 
@@ -142,5 +166,6 @@ class TasksController extends GetxController {
         ),
       );
     }
+    */
   }
 }
