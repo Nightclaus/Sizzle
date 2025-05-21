@@ -25,7 +25,7 @@ class FirestorePipe {
     };
   }
 
-  Future<bool> updateValue(String field, String value) async {
+  Future<bool> updateValue(String field, dynamic value) async {
     final updateBody = jsonEncode({
       'firebaseJWT': jwt,
       'field': field,

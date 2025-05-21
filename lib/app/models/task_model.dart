@@ -22,6 +22,25 @@ class Task {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
+  String get task_tag {
+    switch (tag) {
+      case TaskTag.passion:
+        return "passion";
+      case TaskTag.work:
+        return "work";
+    }
+  }
+
+  String get task_importance {
+    switch (importance) {
+      case TaskImportance.high:
+        return "high";
+      case TaskImportance.medium:
+        return "medium";
+      case TaskImportance.low:
+        return "low";
+    }
+  }
   // Helper to get color for importance
   Color get importanceColor {
     switch (importance) {

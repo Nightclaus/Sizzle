@@ -111,7 +111,10 @@ class TasksController extends GetxController {
 
   final Map stringToImportance = {
     "work": TaskTag.work,
-    "high": TaskImportance.high
+    "passion": TaskTag.passion,
+    "high": TaskImportance.high,
+    "medium": TaskImportance.medium,
+    "low": TaskImportance.low
   };
 
 
