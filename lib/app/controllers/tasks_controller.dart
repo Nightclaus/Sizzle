@@ -24,9 +24,10 @@ class TasksController extends GetxController {
     }
   }
 
-  void addColumn(String title) {
+  void addColumn(String title, [String? uid]) {
+    uid ??= _uuid.v4();
     if (title.trim().isEmpty) return;
-    final newColumn = TaskColumn(id: _uuid.v4(), title: title.trim());
+    final newColumn = TaskColumn(id: uid, title: title.trim());
     columns.add(newColumn);
   }
 
@@ -108,6 +109,11 @@ class TasksController extends GetxController {
   return columns.firstWhere((col) => col.tasks.contains(task));
   }
 
+  final Map stringToImportance = {
+    "work": TaskTag.work,
+    "high": TaskImportance.high
+  };
+
 
   void _addDefaultColumns() async { // Testcase
     String userToken = await fetchIdToken() ?? '';
@@ -119,24 +125,24 @@ class TasksController extends GetxController {
     */
 
     String dashboard = "Dashboard";
+    Map<dynamic, dynamic> allColumns = await pipe.getValue(dashboard);
 
-    Map<String, Map> allColumns = await pipe.getValue(dashboard);
-    allColumns.forEach((key, value) async {
-      Map<String, dynamic> columnData = await pipe.getValue(dashboard);
-        addColumn(columnData["name"]);
-        Map<String, dynamic> tasksInColumn = columnData["tasks"];
-        tasksInColumn.forEach((taskUid, map) {
-          addTaskToColumn(
-            columnData["uid"], 
-            Task(
-              id: taskUid, // map["uid"]
-              name: map["name"],
-              description: map["description"],
-              tag: map["task_tag"],
-              importance: map["task_importance"]
-            )
-          );
-        });
+    allColumns.forEach((columnUid, columnData) async {
+      addColumn(columnData["name"], columnUid);
+      Map<String, dynamic> tasksInColumn = columnData["tasks"];
+
+      tasksInColumn.forEach((taskUid, map) {
+        addTaskToColumn(
+          columnUid, 
+          Task(
+            id: taskUid, // map["uid"]
+            name: map["name"],
+            description: map["description"],
+            tag: stringToImportance[map["task_tag"]],
+            importance: stringToImportance[map["task_importance"]]
+          )
+        );
+      });
     });
     
     /*

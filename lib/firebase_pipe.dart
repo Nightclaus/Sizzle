@@ -77,7 +77,7 @@ class FirestorePipe {
       final retrievedValue = responseData['value'] ?? '[null]';
       debugPrint('[o] Value retrieved: $retrievedValue');
 
-      return 'Value retrieved: $retrievedValue';
+      return retrievedValue;
     } catch (e) {
       debugPrint('Error occurred: $e');
       return 'Error: $e';
