@@ -12,7 +12,7 @@ Future<String?> fetchIdToken() async {
 }
 
 class TasksController extends GetxController {
-  var columns = <TaskColumn>[].obs;
+  RxList<TaskColumn> columns = <TaskColumn>[].obs;
   final Uuid _uuid = const Uuid();
 
   @override
@@ -24,29 +24,35 @@ class TasksController extends GetxController {
     }
   }
 
-  void addColumn(String title, [String? uid]) async {
+  Future<void> addColumn(String title, [String? uid]) async {
     String userToken = await fetchIdToken() ?? '';
     FirestorePipe pipe = FirestorePipe(jwt: userToken);
 
-    uid ??= _uuid.v4();
     if (title.trim().isEmpty) return;
-    pipe.updateValue("Dashboard", {
-      uid: {
-        "name": title,
-        "tasks": {}
-      }
-    });
+    if (uid == null) {
+      uid ??= _uuid.v4();
+      pipe.updateValue("Dashboard", {
+        uid: {
+          "name": title,
+          "tasks": {}
+        }
+      });
+    }
+    print("Created column with ID $uid");
     final newColumn = TaskColumn(id: uid, title: title.trim());
+    print(columns.length);
     columns.add(newColumn);
+    print(columns.length);
   }
 
   void addTaskToColumn(String columnId, Task task) {
+    print("column id is $columnId");
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex != -1) {
       columns[columnIndex].tasks.add(task);
       // columns.refresh(); // May not be needed if TaskColumn.tasks is RxList
     } else {
-      Get.snackbar("Error", "Column not found to add task.");
+      Get.snackbar("Error", "Column not found to add task...");
     }
   }
 
@@ -140,12 +146,15 @@ class TasksController extends GetxController {
     Map<dynamic, dynamic> allColumns = await pipe.getValue(dashboard);
 
     allColumns.forEach((columnUid, columnData) async {
-      addColumn(columnData["name"], columnUid);
+      print("[Retrieved] id $columnUid with this name ${columnData["name"]}");
+      await addColumn(columnData["name"], columnUid);
+      String parentId = columnUid;
       Map<String, dynamic> tasksInColumn = columnData["tasks"];
 
       tasksInColumn.forEach((taskUid, map) {
+        print("My parent id is $parentId");
         addTaskToColumn(
-          columnUid, 
+          parentId, 
           Task(
             id: taskUid, // map["uid"]
             name: map["name"],
