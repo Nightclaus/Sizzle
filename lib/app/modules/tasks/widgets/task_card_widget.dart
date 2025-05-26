@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../models/task_model.dart';
 
@@ -40,7 +41,7 @@ class TaskCardWidget extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      task.tag.toString().split('.').last.capitalizeFirst,
+                      StringExtension(task.tag.toString().split('.').last).capitalizeFirst,
                       style: TextStyle(color: lightenColor(task.tagColor), fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -52,10 +53,39 @@ class TaskCardWidget extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      task.importance.toString().split('.').last.capitalizeFirst,
+                      StringExtension(task.importance.toString().split('.').last).capitalizeFirst,
                       style: TextStyle(color: lightenColor(task.importanceColor), fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   ),
+                  Expanded( // Push to the right
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        icon: const Icon(Icons.edit),
+                        iconSize: 20.0,
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          // Edit placeholder
+                          Get.snackbar(
+                            "Operation",
+                            "Editing ${task.name}",
+                            snackPosition: SnackPosition.BOTTOM,
+                          );
+                        },
+                      )
+                    ),
+                  ),
+                  SizedBox(width: 5,),
+                  IconButton(
+                    icon: Icon(Icons.delete),
+                    iconSize: 20.0,
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      // Deleted placeholder
+                      Get.snackbar("Operation", "Deleted ${task.name}",
+                      snackPosition: SnackPosition.BOTTOM);
+                    },
+                  )
                 ],
               ),
               const SizedBox(height: 8),
