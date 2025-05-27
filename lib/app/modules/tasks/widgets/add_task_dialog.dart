@@ -2,27 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart';
 import '../../../models/task_model.dart';
-import '../../../controllers/tasks_controller.dart'; // To find TasksController
-import '../../../../firebase_pipe.dart';
-
-void updateDatabase(String columnUID, Task taskData) async {
-  String userToken = await fetchIdToken() ?? '';
-  FirestorePipe pipe = FirestorePipe(jwt: userToken);
-  pipe.updateValue("Dashboard", 
-  {
-    columnUID: {
-      "tasks": {
-        taskData.id: {
-          "name": taskData.name,
-          "description": taskData.description,
-          "task_tag": taskData.task_tag,
-          "task_importance": taskData.task_importance,
-          "parentId": taskData.parentId,
-        }
-      }
-    }
-  });
-}
+import '../../../controllers/tasks_controller.dart';
 
 Future<void> showAddTaskDialog(BuildContext context, String columnId) async {
   final tasksController = Get.find<TasksController>();
@@ -129,7 +109,7 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId) async {
                 importance: selectedImportance.value,
                 parentId: columnId,
               );
-              updateDatabase(columnId, newTask);
+              tasksController.addTaskToDatabase(columnId, newTask);
               tasksController.addTaskToColumn(columnId, newTask);
               Get.back(); // Close the dialog
             }

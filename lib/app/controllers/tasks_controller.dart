@@ -14,6 +14,7 @@ Future<String?> fetchIdToken() async {
 
 class TasksController extends GetxController {
   RxList<TaskColumn> columns = <TaskColumn>[].obs;
+  final String tasksReference = "Tasks";
   final Uuid _uuid = const Uuid();
 
   @override
@@ -39,11 +40,8 @@ class TasksController extends GetxController {
         }
       });
     }
-    print("Created column with ID $uid");
     final newColumn = TaskColumn(id: uid, title: title.trim());
-    print(columns.length);
     columns.add(newColumn);
-    print(columns.length);
   }
 
   void addTaskToColumn(String columnId, Task task) {
@@ -53,7 +51,7 @@ class TasksController extends GetxController {
       columns[columnIndex].tasks.add(task);
       // columns.refresh(); // May not be needed if TaskColumn.tasks is RxList
     } else {
-      Get.snackbar("Error", "Column not found to add task...");
+      Get.snackbar("Error", "Column not found to add task.");
     }
   }
 
@@ -72,14 +70,10 @@ class TasksController extends GetxController {
   void deleteTaskFromDatabase(String columnUID, String taskId) async {
     String userToken = await fetchIdToken() ?? '';
     FirestorePipe pipe = FirestorePipe(jwt: userToken);
-    pipe.updateValue("Dashboard", 
-    {
-      columnUID: {
-        "tasks": {
-          taskId: null,
-        }
+    pipe.updateValue(tasksReference,{
+        taskId: null,
       }
-    });
+    );
   }
 
   void deleteTask(String columnUID, String taskId) {
@@ -88,6 +82,21 @@ class TasksController extends GetxController {
       columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
     }
     deleteTaskFromDatabase(columnUID, taskId);
+  }
+
+  void addTaskToDatabase(String columnUID, Task taskData) async {
+    String userToken = await fetchIdToken() ?? '';
+    FirestorePipe pipe = FirestorePipe(jwt: userToken);
+    pipe.updateValue(tasksReference, {
+        taskData.id: {
+          "name": taskData.name,
+          "description": taskData.description,
+          "task_tag": taskData.task_tag,
+          "task_importance": taskData.task_importance,
+          "parentId": taskData.parentId,
+        }
+      }
+    );
   }
 
   // Placeholder for reordering tasks within a column (for drag & drop later)
@@ -103,57 +112,25 @@ class TasksController extends GetxController {
     }
   }
 
-  // Placeholder for moving task between columns (for drag & drop later)
-   void moveTaskToColumn(String oldColumnId, String newColumnId, String taskId, int newIndexInColumn) {
-    Task? taskToMove;
-    // Remove from old column
-    final oldColumnIndex = columns.indexWhere((col) => col.id == oldColumnId);
-    if (oldColumnIndex != -1) {
-      final taskIndex = columns[oldColumnIndex].tasks.indexWhere((t) => t.id == taskId);
-      if (taskIndex != -1) {
-        taskToMove = columns[oldColumnIndex].tasks.removeAt(taskIndex);
-      }
-    }
-
-    // Add to new column
-    if (taskToMove != null) {
-      final newColumnIndex = columns.indexWhere((col) => col.id == newColumnId);
-      if (newColumnIndex != -1) {
-        // Ensure index is within bounds
-        int insertAtIndex = newIndexInColumn.clamp(0, columns[newColumnIndex].tasks.length);
-        columns[newColumnIndex].tasks.insert(insertAtIndex, taskToMove);
-      } else {
-        // If new column not found, add back to old (or handle error)
-        if (oldColumnIndex != -1) {
-          columns[oldColumnIndex].tasks.add(taskToMove); // Or some other error recovery
-        }
-      }
-    }
-  }
-
   void moveTask(Task task, {required TaskColumn fromColumn, required TaskColumn toColumn}) async {
     fromColumn.tasks.remove(task);
     task.parentId = toColumn.id;
     toColumn.tasks.add(task);
 
-    deleteTaskFromDatabase(toColumn.id, task.id);
-
     String userToken = await fetchIdToken() ?? '';
     FirestorePipe pipe = FirestorePipe(jwt: userToken);
-    pipe.updateValue("Dashboard", 
-    {
-      toColumn.id: {
-        "tasks": {
-          task.id: {
-            "name": task.name,
-            "description": task.description,
-            "task_tag": task.task_tag,
-            "task_importance": task.task_importance,
-            "parentId": task.parentId,
-          }
+    pipe.updateValue(tasksReference, {
+        task.id: {
+          //"name": task.name,
+          //"description": task.description,
+          //"task_tag": task.task_tag,
+          //"task_importance": task.task_importance,
+          "parentId": task.parentId,
         }
       }
-    });
+    );
+
+    // Database stuff 
   }
 
   TaskColumn getColumnByTask(Task task) {
@@ -182,28 +159,26 @@ class TasksController extends GetxController {
     Map<dynamic, dynamic> allColumns = await pipe.getValue(dashboard);
 
     allColumns.forEach((columnUid, columnData) async {
-      print("[Retrieved] id $columnUid with this name ${columnData["name"]}");
       await addColumn(columnData["name"], columnUid);
-      String parentId = columnUid;
-      Map<String, dynamic> tasksInColumn = columnData["tasks"];
+    });
 
-      tasksInColumn.forEach((taskUid, map) {
-        try {
-          addTaskToColumn(
-            parentId, 
-            Task(
-              id: taskUid, // map["uid"]
-              name: map["name"],
-              description: map["description"],
-              tag: stringToImportance[map["task_tag"]],
-              importance: stringToImportance[map["task_importance"]],
-              parentId: map["parentId"]
-            )
-          );
-        } catch (e) {
-          debugPrint("Error");
-        }
-      });
+    Map<dynamic, dynamic> allTasks = await pipe.getValue(tasksReference);
+    allTasks.forEach((taskUid, map) {
+      try {
+        addTaskToColumn(
+          map["parentId"], // Parent Location
+          Task(
+            id: taskUid, // map["uid"]
+            name: map["name"],
+            description: map["description"],
+            tag: stringToImportance[map["task_tag"]],
+            importance: stringToImportance[map["task_importance"]],
+            parentId: map["parentId"]
+          )
+        );
+      } catch (e) {
+        debugPrint("Error");
+      }
     });
   }
 }
