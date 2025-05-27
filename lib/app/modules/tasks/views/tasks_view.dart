@@ -34,6 +34,7 @@ class TasksPage extends GetView<TasksController> {
   void _showAddColumnDialog(BuildContext context) {
     final theme = Theme.of(context);
     final TextEditingController columnTitleController = TextEditingController();
+
     Get.dialog(
       AlertDialog(
         title: const Text("Add New Column"),
@@ -71,7 +72,7 @@ class TasksPage extends GetView<TasksController> {
                 Get.back();
               } else {
                 Get.snackbar("Error", "Column title cannot be empty.",
-                    snackPosition: SnackPosition.BOTTOM);
+                snackPosition: SnackPosition.BOTTOM);
               }
             },
             child: const Text("Add"),
@@ -93,6 +94,7 @@ class TasksPage extends GetView<TasksController> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final maxHeight = MediaQuery.of(context).size.height - 75;
+    final tasksController = Get.find<TasksController>();
 
     return Scaffold(
       appBar: AppBar(
@@ -219,9 +221,28 @@ class TasksPage extends GetView<TasksController> {
                                 ),
                                 Align(
                                   alignment: Alignment.topRight,
-                                  child: IconButton(
-                                    icon: Icon(Icons.more_vert),
-                                    onPressed: () { /* Column options */ }
+                                  child: PopupMenuButton<String>(
+                                    icon: const Icon(Icons.more_vert),
+                                    onSelected: (String choice) {
+                                      //ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('You pressed: $choice')),);
+                                      Get.snackbar("Column", "You have pressed $choice",
+                                      snackPosition: SnackPosition.BOTTOM);
+                                      if (choice == 'Edit') {
+                                        // Nothing for now
+                                      } else if (choice == 'Delete') {
+                                        tasksController.deleteColumn(column.id);
+                                      }
+                                    },
+                                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                                      const PopupMenuItem<String>(
+                                        value: 'Edit',
+                                        child: Text('Edit'),
+                                      ),
+                                      const PopupMenuItem<String>(
+                                        value: 'Delete',
+                                        child: Text('Delete'),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -284,7 +305,8 @@ class TasksPage extends GetView<TasksController> {
                                       child: TaskCardWidget(
                                         task: task,
                                         onTap: () {
-                                          Get.snackbar("Task Tapped", task.name);
+                                          Get.snackbar("Task Tapped", task.name, 
+                                          snackPosition: SnackPosition.BOTTOM);
                                         },
                                       ),
                                     );

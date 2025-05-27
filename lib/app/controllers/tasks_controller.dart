@@ -44,6 +44,21 @@ class TasksController extends GetxController {
     columns.add(newColumn);
   }
 
+  // Internal Function
+  void deleteColumnFromDatabase(String columnUID) async { // ColumnUID is redundant, waiting for removal
+    String userToken = await fetchIdToken() ?? '';
+    FirestorePipe pipe = FirestorePipe(jwt: userToken);
+    pipe.updateValue("Dashboard",{
+        columnUID: null,
+      }
+    );
+  }
+
+  void deleteColumn(String columnUID) {
+    columns.removeWhere((col) => col.id == columnUID);
+    deleteColumnFromDatabase(columnUID);
+  }
+
   void addTaskToColumn(String columnId, Task task) {
     print("column id is $columnId");
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
@@ -51,7 +66,8 @@ class TasksController extends GetxController {
       columns[columnIndex].tasks.add(task);
       // columns.refresh(); // May not be needed if TaskColumn.tasks is RxList
     } else {
-      Get.snackbar("Error", "Column not found to add task.");
+      //Get.snackbar("Error", "Column not found to add task.");
+      debugPrint("[Error] Column not found to add task.");
     }
   }
 
@@ -170,10 +186,11 @@ class TasksController extends GetxController {
 
     String dashboard = "Dashboard";
     Map<dynamic, dynamic> allColumns = await pipe.getValue(dashboard);
-
+    allColumns.removeWhere((key, value) => value == null);
     allColumns.forEach((columnUid, columnData) async {
       await addColumn(columnData["name"], columnUid);
     });
+    pipe.updateValue("Dashboard", allColumns); // Change db to allow both to be in one
 
     Map<dynamic, dynamic> allTasks = await pipe.getValue(tasksReference);
     allTasks.removeWhere((key, value) => value == null);
@@ -194,7 +211,8 @@ class TasksController extends GetxController {
         if (taskUid == "NullTerminator") {
           debugPrint("[Safe] Reached Tasking Loading Terminator");
         } else {
-          debugPrint("Loading Error: Task missing data");
+          allTasks.removeWhere((key, value) => value.id == taskUid); // Clearing tasks if parent were deleted but they were not deleted
+          debugPrint("Loading Error: Task missing Column or Task data");
         }
       }
     });
