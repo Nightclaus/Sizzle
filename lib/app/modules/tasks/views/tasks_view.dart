@@ -11,9 +11,24 @@ class TasksPage extends GetView<TasksController> {
   TasksPage({super.key});
 
   final AuthController authController = Get.find<AuthController>(); // For logout
+  final double  defaultColumnWidth = 300;
 
   Color lightenColor(Color color, [int amount = 100]) {
     return Color.alphaBlend(Colors.white.withAlpha(amount), color);
+  }
+
+  double calculateTextHeight({
+    required String text,
+    required TextStyle style,
+    required double maxWidth,
+  }) {
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: null, // Allow multiline
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth);
+
+    return textPainter.size.height;
   }
 
   void _showAddColumnDialog(BuildContext context) {
@@ -160,13 +175,17 @@ class TasksPage extends GetView<TasksController> {
                       },
                       builder: (_, candidateData, ___) {
                         String originId = getOriginId(candidateData);
-                        print("Original" + originId + "Not" + column.id);
                         final isBeingHovered = candidateData.isNotEmpty;
+                        final estimatedHeight = calculateTextHeight(
+                          text: column.title,
+                          style: theme.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.bold),
+                          maxWidth: defaultColumnWidth - 19, // Left and right padding of the text combined
+                        );
                       return Stack(
                       children: [
                         Obx(() => Container(
-                        width: 300, // Width of each column
-                        height: (isBeingHovered && column.tasks.isEmpty) ? 275 : column.getFullHeight, // Condition for making everying larger
+                        width: defaultColumnWidth, // Width of each column
+                        height: (isBeingHovered && column.tasks.isEmpty) ? 245 + estimatedHeight : column.getFullHeight + estimatedHeight - 30, // Condition for making everying larger
                         margin: const EdgeInsets.only(right: 16.0),
                         padding: const EdgeInsets.all(12.0),
                         decoration: BoxDecoration(
@@ -184,23 +203,28 @@ class TasksPage extends GetView<TasksController> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: 8,
-                                bottom: 8,
-                                left: 3,
-                                right: 8,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
+                            Stack(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 8,
+                                    bottom: 8,
+                                    left: 3,
+                                    right: 16,        // Add more right buffer for the text here
+                                  ),
+                                  child: Text(
                                     column.title,
                                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                                   ),
-                                  // IconButton(icon: Icon(Icons.more_vert), onPressed: () { /* Column options */ })
-                                ],
-                              ),
+                                ),
+                                Align(
+                                  alignment: Alignment.topRight,
+                                  child: IconButton(
+                                    icon: Icon(Icons.more_vert),
+                                    onPressed: () { /* Column options */ }
+                                  ),
+                                ),
+                              ],
                             ),
                             Container(
                               height: 2,
@@ -249,7 +273,7 @@ class TasksPage extends GetView<TasksController> {
                                       feedback: Material( // Must be Material to show shadows etc.
                                         color: Colors.transparent,
                                         child: SizedBox(
-                                          width: 280, // match your card width
+                                          width: 280, // match the card width
                                           child: TaskCardWidget(task: task),
                                         ),
                                       ),
