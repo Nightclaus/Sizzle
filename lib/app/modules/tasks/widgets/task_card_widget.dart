@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../models/task_model.dart';
 import '../../../controllers/tasks_controller.dart';
+import 'add_task_dialog.dart';
 
 class TaskCardWidget extends StatelessWidget {
   final Task task;
@@ -48,6 +49,7 @@ class TaskCardWidget extends StatelessWidget {
                       padding: EdgeInsets.zero,
                       onPressed: () {
                         // Edit placeholder
+                        showAddTaskDialog(context, task.parentId, task);
                         Get.snackbar(
                           "Operation",
                           "Editing ${task.name}",

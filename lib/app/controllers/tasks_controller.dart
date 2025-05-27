@@ -67,7 +67,7 @@ class TasksController extends GetxController {
   }
 
   // Internal Function
-  void deleteTaskFromDatabase(String columnUID, String taskId) async {
+  void deleteTaskFromDatabase(String columnUID, String taskId) async { // ColumnUID is redundant, waiting for removal
     String userToken = await fetchIdToken() ?? '';
     FirestorePipe pipe = FirestorePipe(jwt: userToken);
     pipe.updateValue(tasksReference,{
@@ -82,6 +82,13 @@ class TasksController extends GetxController {
       columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
     }
     deleteTaskFromDatabase(columnUID, taskId);
+  }
+
+  void clearTask(String parentId, String taskId) { // Soft delete
+    final columnIndex = columns.indexWhere((col) => col.id == parentId);
+    if (columnIndex != -1) {
+      columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
+    }
   }
 
   void addTaskToDatabase(String columnUID, Task taskData) async {
@@ -129,8 +136,6 @@ class TasksController extends GetxController {
         }
       }
     );
-
-    // Database stuff 
   }
 
   TaskColumn getColumnByTask(Task task) {
@@ -143,6 +148,14 @@ class TasksController extends GetxController {
     "high": TaskImportance.high,
     "medium": TaskImportance.medium,
     "low": TaskImportance.low
+  };
+
+  final Map stringToObs = {
+    "work": TaskTag.work.obs,
+    "passion": TaskTag.passion.obs,
+    "high": TaskImportance.high.obs,
+    "medium": TaskImportance.medium.obs,
+    "low": TaskImportance.low.obs
   };
 
 

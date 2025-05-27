@@ -4,15 +4,22 @@ import 'package:uuid/uuid.dart';
 import '../../../models/task_model.dart';
 import '../../../controllers/tasks_controller.dart';
 
-Future<void> showAddTaskDialog(BuildContext context, String columnId) async {
+Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? existingTask]) async {
   final tasksController = Get.find<TasksController>();
   final formKey = GlobalKey<FormState>();
-  final nameController = TextEditingController();
-  final descriptionController = TextEditingController();
-  var selectedTag = TaskTag.work.obs;
-  var selectedImportance = TaskImportance.medium.obs;
+
+  bool editMode = false;
+  if (existingTask != null) {
+    editMode = true;
+  }
+
+  final nameController = TextEditingController(text: editMode ? existingTask!.name : "");
+  final descriptionController = TextEditingController(text: editMode ? existingTask!.description : "");
+  var selectedTag = editMode ? tasksController.stringToObs[existingTask!.task_tag]! : TaskTag.work.obs;
+  var selectedImportance = editMode ? tasksController.stringToObs[existingTask!.task_importance]! : TaskImportance.medium.obs;
   final Uuid uuid = const Uuid();
   final theme = Theme.of(context);
+
   Color lightenColor(Color color, [int amount = 100]) {
     return Color.alphaBlend(Colors.white.withAlpha(amount), color);
   }
@@ -27,7 +34,7 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId) async {
         right: 16,
         bottom: 24
       ),
-      title: const Text('Add New Task'),
+      title: Text((editMode ? 'Edit Task' : 'Add New Task')),
       content: SingleChildScrollView(
         child: Form(
           key: formKey,
@@ -98,19 +105,33 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId) async {
               borderRadius: BorderRadius.all(Radius.circular(8))
             )
           ),
-          child: const Text('Add Task'),
+          child: Text(editMode ? "Edit Task" : 'Add Task'),
           onPressed: () {
             if (formKey.currentState!.validate()) {
-              final newTask = Task(
-                id: uuid.v4(), // Used v4 for full randomness
-                name: nameController.text.trim(),
-                description: descriptionController.text.trim(),
-                tag: selectedTag.value,
-                importance: selectedImportance.value,
-                parentId: columnId,
-              );
-              tasksController.addTaskToDatabase(columnId, newTask);
+              late Task newTask;
+              if (!editMode) {
+                newTask = Task(
+                  id: uuid.v4(), // Used v4 for full randomness
+                  name: nameController.text.trim(),
+                  description: descriptionController.text.trim(),
+                  tag: selectedTag.value,
+                  importance: selectedImportance.value,
+                  parentId: columnId,
+                );
+              } else {
+                String originalId = existingTask!.id;
+                newTask = Task(
+                  id: originalId,
+                  name: nameController.text.trim(),
+                  description: descriptionController.text.trim(),
+                  tag: selectedTag.value,
+                  importance: selectedImportance.value,
+                  parentId: columnId,
+                );
+                tasksController.clearTask(columnId, originalId);
+              }
               tasksController.addTaskToColumn(columnId, newTask);
+              tasksController.addTaskToDatabase(columnId, newTask);
               Get.back(); // Close the dialog
             }
           },
