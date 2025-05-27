@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sizzle/app/models/task_column_model.dart';
 import 'package:sizzle/app/modules/tasks/widgets/add_task_dialog.dart';
 import '../../../controllers/auth_controller.dart'; // For sign out
 import '../../../controllers/tasks_controller.dart';
@@ -31,23 +32,32 @@ class TasksPage extends GetView<TasksController> {
     return textPainter.size.height;
   }
 
-  void _showAddColumnDialog(BuildContext context) {
+  void _showAddColumnDialog(BuildContext context, [TaskColumn? existingColumn]) {
     final theme = Theme.of(context);
-    final TextEditingController columnTitleController = TextEditingController();
+
+    bool editMode = false;
+    if (existingColumn != null) {
+      editMode = true;
+    }
+
+    final TextEditingController columnTitleController = TextEditingController(text: editMode ? existingColumn!.title : "");
 
     Get.dialog(
       AlertDialog(
-        title: const Text("Add New Column"),
+        title: Text(editMode ? "Edit Column" : "Add New Column"),
         backgroundColor: Colors.white,
         content: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: 120,
+            maxHeight: editMode ? 80 : 120,
             maxWidth: 200
           ), 
-          child:Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Get started by setting the name of the new group, they can hold as many tasks as you need!"),
+              Text(editMode 
+                ? "Edit your title!" 
+                : "Get started by setting the name of the new group, they can hold as many tasks as you need!"
+              ),
               TextField(
                 controller: columnTitleController,
                 decoration: const InputDecoration(hintText: "Column Title"),
@@ -68,14 +78,19 @@ class TasksPage extends GetView<TasksController> {
             ),
             onPressed: () {
               if (columnTitleController.text.trim().isNotEmpty) {
-                controller.addColumn(columnTitleController.text.trim());
+                if (editMode) {
+                  existingColumn!.title = columnTitleController.text.trim();
+                  controller.updateColumnToDatabase(existingColumn);
+                } else {
+                  controller.addColumn(columnTitleController.text.trim());
+                }
                 Get.back();
               } else {
                 Get.snackbar("Error", "Column title cannot be empty.",
                 snackPosition: SnackPosition.BOTTOM);
               }
             },
-            child: const Text("Add"),
+            child: Text(editMode ? "Finish" : "Add"),
           )
         ],
       ),
@@ -228,7 +243,7 @@ class TasksPage extends GetView<TasksController> {
                                       Get.snackbar("Column", "You have pressed $choice",
                                       snackPosition: SnackPosition.BOTTOM);
                                       if (choice == 'Edit') {
-                                        // Nothing for now
+                                        _showAddColumnDialog(context, column);
                                       } else if (choice == 'Delete') {
                                         tasksController.deleteColumn(column.id);
                                       }

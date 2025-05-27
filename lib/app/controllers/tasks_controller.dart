@@ -36,7 +36,7 @@ class TasksController extends GetxController {
       pipe.updateValue("Dashboard", {
         uid: {
           "name": title,
-          "tasks": {}
+          //"tasks": {} // Redundant
         }
       });
     }
@@ -44,8 +44,21 @@ class TasksController extends GetxController {
     columns.add(newColumn);
   }
 
+  void updateColumnToDatabase(TaskColumn newColumn) async {
+    String userToken = await fetchIdToken() ?? '';
+    FirestorePipe pipe = FirestorePipe(jwt: userToken);
+    columns.refresh();
+
+    pipe.updateValue(
+      "Dashboard", {
+        newColumn.id: {
+          "name": newColumn.title,
+        }
+      }
+    );
+  }
   // Internal Function
-  void deleteColumnFromDatabase(String columnUID) async { // ColumnUID is redundant, waiting for removal
+  void deleteColumnFromDatabase(String columnUID) async {
     String userToken = await fetchIdToken() ?? '';
     FirestorePipe pipe = FirestorePipe(jwt: userToken);
     pipe.updateValue("Dashboard",{
@@ -216,6 +229,6 @@ class TasksController extends GetxController {
         }
       }
     });
-    pipe.updateValue(tasksReference, allTasks); // Update the cleaned
+    pipe.updateValue(tasksReference, allTasks); // Update the cleaned map back into DB
   }
 }
