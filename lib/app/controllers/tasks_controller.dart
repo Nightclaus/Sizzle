@@ -176,6 +176,7 @@ class TasksController extends GetxController {
     });
 
     Map<dynamic, dynamic> allTasks = await pipe.getValue(tasksReference);
+    allTasks.removeWhere((key, value) => value == null);
     allTasks.forEach((taskUid, map) {
       try {
         addTaskToColumn(
@@ -190,8 +191,13 @@ class TasksController extends GetxController {
           )
         );
       } catch (e) {
-        debugPrint("Error");
+        if (taskUid == "NullTerminator") {
+          debugPrint("[Safe] Reached Tasking Loading Terminator");
+        } else {
+          debugPrint("Loading Error: Task missing data");
+        }
       }
     });
+    pipe.updateValue(tasksReference, allTasks); // Update the cleaned
   }
 }
