@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../models/task_model.dart';
+import '../../../controllers/tasks_controller.dart';
 
 class TaskCardWidget extends StatelessWidget {
   final Task task;
@@ -15,6 +16,7 @@ class TaskCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tasksController = Get.find<TasksController>();
     final theme = Theme.of(context);
     final DateFormat dateFormat = DateFormat('MMM d'); // For displaying date
 
@@ -27,106 +29,120 @@ class TaskCardWidget extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8.0),
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.only(
+            top: 3,
+            right: 12,
+            left: 12,
+            bottom: 12,
+          ),
+          child: Stack(
             children: [
-              // Top row for tags/labels (similar to Trello)
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: task.tagColor.withAlpha(120),      // Use 60 and remove lighten colour to switch the roles
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      StringExtension(task.tag.toString().split('.').last).capitalizeFirst,
-                      style: TextStyle(color: lightenColor(task.tagColor), fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: task.importanceColor.withAlpha(120),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      StringExtension(task.importance.toString().split('.').last).capitalizeFirst,
-                      style: TextStyle(color: lightenColor(task.importanceColor), fontSize: 10, fontWeight: FontWeight.bold),
+                Expanded( 
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      icon: const Icon(Icons.edit),
+                      iconSize: 20.0,
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        // Edit placeholder
+                        Get.snackbar(
+                          "Operation",
+                          "Editing ${task.name}",
+                          snackPosition: SnackPosition.BOTTOM,
+                        );
+                      },
                     ),
                   ),
-                  Expanded( // Push to the right
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: IconButton(
-                        icon: const Icon(Icons.edit),
-                        iconSize: 20.0,
-                        padding: EdgeInsets.zero,
-                        onPressed: () {
-                          // Edit placeholder
-                          Get.snackbar(
-                            "Operation",
-                            "Editing ${task.name}",
-                            snackPosition: SnackPosition.BOTTOM,
-                          );
-                        },
-                      )
+                ),
+                
+                SizedBox(width: 5,),
+                IconButton(
+                  icon: Icon(Icons.delete),
+                  iconSize: 20.0,
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    // Deleted placeholder
+                    tasksController.deleteTask(task.parentId, task.id);
+                    Get.snackbar("Operation", "Deleted ${task.name}",
+                    snackPosition: SnackPosition.BOTTOM);
+                  },
+                )
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: 9),
+                Row( // Top row for tags/labels (similar to Trello)
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: task.tagColor.withAlpha(120),      // Use 60 and remove lighten colour to switch the roles
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        StringExtension(task.tag.toString().split('.').last).capitalizeFirst,
+                        style: TextStyle(color: lightenColor(task.tagColor), fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
-                  SizedBox(width: 5,),
-                  IconButton(
-                    icon: Icon(Icons.delete),
-                    iconSize: 20.0,
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      // Deleted placeholder
-                      Get.snackbar("Operation", "Deleted ${task.name}",
-                      snackPosition: SnackPosition.BOTTOM);
-                    },
-                  )
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                task.name,
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600), // use existing format
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (task.description.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: task.importanceColor.withAlpha(120),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        StringExtension(task.importance.toString().split('.').last).capitalizeFirst,
+                        style: TextStyle(color: lightenColor(task.importanceColor), fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 Text(
-                  task.description,
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                  maxLines: 3,
+                  task.name,
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600), // use existing format
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ],
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Placeholder for icons like comments, attachments
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today_outlined, size: 14, color: theme.hintColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        dateFormat.format(task.createdAt),
-                        style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                      ),
-                    ],
+                if (task.description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    task.description,
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  // Placeholder for avatars
-                  // CircleAvatar(radius: 12, child: Text(task.assigneeInitial ?? "A"))
                 ],
-              )
-            ],
-          ),
-        ),
-      ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Placeholder for icons like comments, attachments
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today_outlined, size: 14, color: theme.hintColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          dateFormat.format(task.createdAt),
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                        ),
+                      ],
+                    ),
+                    // Placeholder for avatars
+                    // CircleAvatar(radius: 12, child: Text(task.assigneeInitial ?? "A"))
+                  ],
+                )
+              ],
+            ),
+        ]),
+      )
+    )
     );
   }
 }

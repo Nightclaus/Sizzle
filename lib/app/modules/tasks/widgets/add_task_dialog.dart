@@ -17,6 +17,7 @@ void updateDatabase(String columnUID, Task taskData) async {
           "description": taskData.description,
           "task_tag": taskData.task_tag,
           "task_importance": taskData.task_importance,
+          "parentId": taskData.parentId,
         }
       }
     }
@@ -126,6 +127,7 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId) async {
                 description: descriptionController.text.trim(),
                 tag: selectedTag.value,
                 importance: selectedImportance.value,
+                parentId: columnId,
               );
               updateDatabase(columnId, newTask);
               tasksController.addTaskToColumn(columnId, newTask);

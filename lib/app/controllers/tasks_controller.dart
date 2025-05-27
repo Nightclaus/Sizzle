@@ -1,4 +1,5 @@
 //import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart'; // Add uuid to pubspec.yaml: `flutter pub add uuid`
 import '../models/task_column_model.dart';
@@ -67,11 +68,26 @@ class TasksController extends GetxController {
     }
   }
 
-  void deleteTask(String columnId, String taskId) {
-    final columnIndex = columns.indexWhere((col) => col.id == columnId);
+  // Internal Function
+  void deleteTaskFromDatabase(String columnUID, String taskId) async {
+    String userToken = await fetchIdToken() ?? '';
+    FirestorePipe pipe = FirestorePipe(jwt: userToken);
+    pipe.updateValue("Dashboard", 
+    {
+      columnUID: {
+        "tasks": {
+          taskId: null,
+        }
+      }
+    });
+  }
+
+  void deleteTask(String columnUID, String taskId) {
+    final columnIndex = columns.indexWhere((col) => col.id == columnUID);
     if (columnIndex != -1) {
       columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
     }
+    deleteTaskFromDatabase(columnUID, taskId);
   }
 
   // Placeholder for reordering tasks within a column (for drag & drop later)
@@ -115,9 +131,29 @@ class TasksController extends GetxController {
     }
   }
 
-  void moveTask(Task task, {required TaskColumn fromColumn, required TaskColumn toColumn}) {
+  void moveTask(Task task, {required TaskColumn fromColumn, required TaskColumn toColumn}) async {
     fromColumn.tasks.remove(task);
+    task.parentId = toColumn.id;
     toColumn.tasks.add(task);
+
+    deleteTaskFromDatabase(toColumn.id, task.id);
+
+    String userToken = await fetchIdToken() ?? '';
+    FirestorePipe pipe = FirestorePipe(jwt: userToken);
+    pipe.updateValue("Dashboard", 
+    {
+      toColumn.id: {
+        "tasks": {
+          task.id: {
+            "name": task.name,
+            "description": task.description,
+            "task_tag": task.task_tag,
+            "task_importance": task.task_importance,
+            "parentId": task.parentId,
+          }
+        }
+      }
+    });
   }
 
   TaskColumn getColumnByTask(Task task) {
@@ -152,17 +188,21 @@ class TasksController extends GetxController {
       Map<String, dynamic> tasksInColumn = columnData["tasks"];
 
       tasksInColumn.forEach((taskUid, map) {
-        print("My parent id is $parentId");
-        addTaskToColumn(
-          parentId, 
-          Task(
-            id: taskUid, // map["uid"]
-            name: map["name"],
-            description: map["description"],
-            tag: stringToImportance[map["task_tag"]],
-            importance: stringToImportance[map["task_importance"]]
-          )
-        );
+        try {
+          addTaskToColumn(
+            parentId, 
+            Task(
+              id: taskUid, // map["uid"]
+              name: map["name"],
+              description: map["description"],
+              tag: stringToImportance[map["task_tag"]],
+              importance: stringToImportance[map["task_importance"]],
+              parentId: map["parentId"]
+            )
+          );
+        } catch (e) {
+          debugPrint("Error");
+        }
       });
     });
   }

@@ -7,6 +7,7 @@ class Task {
   final String id;
   String name;
   String description;
+  String parentId;
   TaskTag tag;
   TaskImportance importance;
   DateTime createdAt;
@@ -18,6 +19,7 @@ class Task {
     this.description = '',
     required this.tag,
     required this.importance,
+    required this.parentId,
     // required this.columnId,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
