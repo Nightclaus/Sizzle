@@ -73,14 +73,15 @@ class TasksController extends GetxController {
   }
 
   void addTaskToColumn(String columnId, Task task) {
-    print("column id is $columnId");
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex != -1) {
       columns[columnIndex].tasks.add(task);
+      debugPrint("[INITIATOR] Built task: ${task.name}");
       // columns.refresh(); // May not be needed if TaskColumn.tasks is RxList
     } else {
       //Get.snackbar("Error", "Column not found to add task.");
       debugPrint("[Error] Column not found to add task.");
+      throw ArgumentError("Removing Task");
     }
   }
 
@@ -189,6 +190,7 @@ class TasksController extends GetxController {
 
 
   void _addDefaultColumns() async { // Testcase
+    debugPrint("[INITIATOR] Starting : Setting Credentials'");
     String userToken = await fetchIdToken() ?? '';
     FirestorePipe pipe = FirestorePipe(jwt: userToken);
 
@@ -196,17 +198,41 @@ class TasksController extends GetxController {
     String res = await pipe.testFirestoreFlow();
     print(res);
     */
-
+    
     String dashboard = "Dashboard";
+    int columnFixSuccess = 0;
+    int columnFixFailures = 0;
+    debugPrint("[INITIATOR] Getting 'Dashboard'");
     Map<dynamic, dynamic> allColumns = await pipe.getValue(dashboard);
-    allColumns.removeWhere((key, value) => value == null);
-    allColumns.forEach((columnUid, columnData) async {
-      await addColumn(columnData["name"], columnUid);
-    });
-    pipe.updateValue("Dashboard", allColumns); // Change db to allow both to be in one
 
+    debugPrint("[INITIATOR] Sanitising Columns");
+    allColumns.removeWhere((key, value) => value == null);
+
+    debugPrint("[INITIATOR] Building Columns...");
+    allColumns.forEach((columnUid, columnData) async {
+      try {
+        await addColumn(columnData["name"], columnUid);
+      } catch (e) {
+        debugPrint("[INITIATOR] INTERNAL ERROR : INVALID DATATYPE | Auto fixing..."); 
+        try {
+          allColumns.removeWhere((key, value) => key == columnUid); // Deleting Value
+          debugPrint("[INITIATOR] Autofix : Succeeded in fixing target (${columnFixSuccess++})");
+        } catch (e) {
+          debugPrint("[INITIATOR] Autofix : Failed to fix target (${columnFixFailures++})"); // Shouldnt reach here
+        }
+      }
+    });
+    debugPrint("[INITIATOR] Pushing cleaning changes to 'Columns'. Removed [${columnFixSuccess + columnFixFailures}] task(s)");
+    await pipe.updateValue("Dashboard", {}); // Clear first
+    await pipe.updateValue("Dashboard", allColumns); // Change db to allow both to be in one
+    debugPrint("[INITIATOR] Finished Updating 'Columns'");
+
+    int numberRemoved = 0;
+    debugPrint("[INITIATOR] Getting 'Tasks'");
     Map<dynamic, dynamic> allTasks = await pipe.getValue(tasksReference);
+    debugPrint("[INITIATOR] Sanitising Tasks");
     allTasks.removeWhere((key, value) => value == null);
+    debugPrint("[INITIATOR] Building Tasks...");
     allTasks.forEach((taskUid, map) {
       try {
         addTaskToColumn(
@@ -222,13 +248,22 @@ class TasksController extends GetxController {
         );
       } catch (e) {
         if (taskUid == "NullTerminator") {
-          debugPrint("[Safe] Reached Tasking Loading Terminator");
+          debugPrint("[INITIATOR] Reached Terminator (Legacy)");
         } else {
-          allTasks.removeWhere((key, value) => value.id == taskUid); // Clearing tasks if parent were deleted but they were not deleted
-          debugPrint("Loading Error: Task missing Column or Task data");
+          try {
+            allTasks.removeWhere((key, value) => key == taskUid); // Clearing tasks if parent were deleted but they were not deleted
+            numberRemoved++;
+            debugPrint("[INITIATOR] Loading Error: Task missing Column or Task data");
+          } catch (e) {
+            debugPrint("[INITIATOR] INTERNAL ERROR: UNEXPECTED DATATYPE WHILE CLEARING TASKS MAP");
+          }
+
         }
       }
     });
-    pipe.updateValue(tasksReference, allTasks); // Update the cleaned map back into DB
+    debugPrint("[INITIATOR] Pushing cleaning changes to 'Tasks'. Removed [$numberRemoved] task(s)");
+    await pipe.updateValue(tasksReference, {}); // Clear first
+    await pipe.updateValue(tasksReference, allTasks); // Update the cleaned map back into DB
+    debugPrint("[INITIATOR] Finished Updating 'Tasks'");
   }
 }
