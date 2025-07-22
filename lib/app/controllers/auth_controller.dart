@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../routes/app_pages.dart'; // For navigation
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+//import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -19,6 +20,14 @@ class AuthController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+
+    // Baraam code, delete later
+
+    //final _firestore = FirebaseFirestore.instance;
+    //final firestoreRef = _firestore.collection('sdfdsf').doc();
+    //_firestore.collection('sdfdsfds').doc(firestoreRef.id).get
+
+    // baraam code ends
 
     final clientId = dotenv.env['GOOGLE_CLIENT_ID'];
     assert(clientId != null, 'GOOGLE_CLIENT_ID is missing from .env');
