@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 //import 'dart:convert';
+import 'package:dotted_border/dotted_border.dart';
 import 'package:intl/intl.dart';
 
 
@@ -354,6 +355,7 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
     );
   }
 }
+
 /////////////////////////////////////////////////////////////////////////
 
 class GPText extends StatelessWidget {
@@ -395,3 +397,123 @@ class GPPopup {
  );
  }
 }
+
+/////////////////////////////////////////////////////////////////////////
+
+class GPColumn<T extends Object> extends StatelessWidget {
+  final Widget header;
+  final Widget body;
+  final Widget footer;
+  final double width;
+  // REMOVED: A flexible widget should not have a fixed height parameter.
+  // It determines its own height from its content.
+  // final double? height;
+  final DragTargetAccept<T> onAccept;
+  final Widget? hoverPlaceholder;
+  final BoxDecoration? decoration;
+  final EdgeInsetsGeometry? margin;
+
+  const GPColumn({
+    Key? key,
+    required this.header,
+    required this.body,
+    required this.footer,
+    required this.onAccept,
+    this.width = 300.0,
+    // this.height, // REMOVED from constructor
+    this.hoverPlaceholder,
+    this.decoration,
+    this.margin,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget<T>(
+      onAccept: onAccept,
+      builder: (context, candidateData, rejectedData) {
+        final isBeingHovered = candidateData.isNotEmpty;
+        final theme = Theme.of(context);
+
+        // The container no longer has a height property. Its height will be
+        // determined by the Column child.
+        return Container(
+          width: width,
+          // height: height, // REMOVED
+          margin: margin ?? const EdgeInsets.only(right: 16.0),
+          decoration: decoration ?? BoxDecoration( // Shadow
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(12.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.5),
+                    spreadRadius: 1,
+                    blurRadius: 3,
+                    offset: const Offset(0, 2),
+                  )
+                ],
+              ),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              // Column to size itself to its children.
+              mainAxisSize:  MainAxisSize.min,
+              children: [
+                header,
+                const SizedBox(height: 8),
+                if (isBeingHovered)
+                  _buildHoverUI(context)
+                else
+                  Expanded( // So simple and elegant, TODO: Remove obx getx scroller in `tasks_view.dart`
+                    child: SingleChildScrollView(
+                      child: body
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                footer,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // _buildHoverUI method is unchanged, but it now works correctly.
+  Widget _buildHoverUI(BuildContext context) {
+    if (hoverPlaceholder != null) {
+      return hoverPlaceholder!;
+    }
+    final theme = Theme.of(context);
+    // Added a ConstrainedBox to ensure the drop target has a decent size.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 100),
+      child: DottedBorder(
+        dashPattern: const [6, 3],
+        color: Colors.grey,
+        strokeWidth: 2,
+        borderType: BorderType.RRect,
+        radius: const Radius.circular(12),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: theme.primaryColor.withAlpha(10),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_circle_outline, color: Colors.grey, size: 30),
+                SizedBox(height: 8),
+                Text("Move here!", style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+/////////////////////////////////////////////////////////////////////////

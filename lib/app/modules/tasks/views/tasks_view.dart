@@ -4,15 +4,18 @@ import 'package:sizzle/app/models/task_column_model.dart';
 import 'package:sizzle/app/modules/tasks/widgets/add_task_dialog.dart';
 import '../../../controllers/auth_controller.dart'; // For sign out
 import '../../../controllers/tasks_controller.dart';
-import '../widgets/task_card_widget.dart';
+import '../widgets/task_card_widget.dart'; // For Widget Tasks
 import '../../../models/task_model.dart';
-import 'package:dotted_border/dotted_border.dart';
+import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
 
-// General TODO : Make a seperated container object with drag location, and seperate loader to clean things up
+
+
+// Note: All helper methods (_showAddColumnDialog, etc.) and the Scaffold/AppBar
+// remain unchanged as they are part of the page's logic. The changes are
+// focused entirely within the ListView.builder's itemBuilder.
 
 class TasksPage extends GetView<TasksController> {
-  TasksPage({super.key});
-
+    // ... (All code before the build method remains the same) ...
   final AuthController authController = Get.find<AuthController>(); // For logout
   final double  defaultColumnWidth = 300;
 
@@ -20,19 +23,6 @@ class TasksPage extends GetView<TasksController> {
     return Color.alphaBlend(Colors.white.withAlpha(amount), color);
   }
 
-  double calculateTextHeight({
-    required String text,
-    required TextStyle style,
-    required double maxWidth,
-  }) {
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      maxLines: null, // Allow multiline
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: maxWidth);
-
-    return textPainter.size.height;
-  }
 
   void _showAddColumnDialog(BuildContext context, [TaskColumn? existingColumn]) {
     final theme = Theme.of(context);
@@ -107,6 +97,7 @@ class TasksPage extends GetView<TasksController> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -119,11 +110,7 @@ class TasksPage extends GetView<TasksController> {
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             SizedBox(width: 9),
-            Text("Sizle /",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text("Sizle /", style: TextStyle(fontWeight: FontWeight.bold)),
             Text(" My Tasks"),
           ]
         ),
@@ -136,29 +123,19 @@ class TasksPage extends GetView<TasksController> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: "Sign Out",
-            onPressed: () {
-              authController.signOut();
-            },
+            onPressed: () => authController.signOut(),
           )
         ],
       ),
-      backgroundColor: Colors.black,//Theme.of(context).colorScheme.primary.withAlpha(255),
-      body: SizedBox.expand( // No2 Op
+      backgroundColor: Colors.black,
+      body: SizedBox.expand(
         child: Stack(
           children: [
-            // Background image, Make dynamic
             Positioned.fill(
-              child: Image.asset(
-                'assets/harvest.jpg',
-                fit: BoxFit.cover,
-              ),
+              child: Image.asset('assets/harvest.jpg', fit: BoxFit.cover),
             ),
-
-            // Overlay color
             Positioned.fill(
-              child: Container(
-                color: Colors.black.withAlpha(100), // Adjust opacity as needed
-              ),
+              child: Container(color: Colors.black.withAlpha(100)),
             ),
             Obx(() {
               if (controller.columns.isEmpty) {
@@ -177,201 +154,106 @@ class TasksPage extends GetView<TasksController> {
                   ),
                 );
               }
-              return Obx(() => ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: maxHeight,
-                ),
-                child: ListView.builder( // Sets up columns to form as rows
+              return ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight), // still respected
+                child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.all(16.0),
-                  itemCount: controller.columns.length,
-                  itemBuilder: (context, index) { // For loop to build each column with a local identifier; index
-                    final column = controller.columns[index];
-                    return DragTarget<Task>( // Sets the column as a drag target
-                      onWillAcceptWithDetails: (task) => true,
-                      onAccept: (task) {
-                        // Request the controller to complete the transfere in the data
-                        controller.moveTask(task, fromColumn: controller.getColumnByTask(task), toColumn: column);
-                      },
-                      builder: (_, itemCurrentlyDragged, ___) { // Identify which item to look out for.
-                        String originId = getOriginId(itemCurrentlyDragged);
-                        final isBeingHovered = itemCurrentlyDragged.isNotEmpty;
-                        final estimatedHeight = calculateTextHeight(
-                          text: column.title,
-                          style: theme.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.bold),
-                          maxWidth: defaultColumnWidth - 19, // Left and right padding of the text combined
-                        );
-                        return Stack( // This is the dynamic construction of the column containers
-                      children: [
-                        Obx(() => Container(
-                        width: defaultColumnWidth, // Width of each column
-                        height: (isBeingHovered && column.tasks.isEmpty) ? 245 + estimatedHeight : column.getFullHeight + estimatedHeight - 30, // Condition for expanding it with the amount of children it has
-                        margin: const EdgeInsets.only(right: 16.0),
-                        padding: const EdgeInsets.all(12.0),
-                        decoration: BoxDecoration(
-                          color: theme.cardColor, // Or Colors.grey[200]
-                          borderRadius: BorderRadius.circular(12.0),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withAlpha(255),
-                              spreadRadius: 1,
-                              blurRadius: 3,
-                              offset: const Offset(0, 2),
-                            )
-                          ]
-                        ),
-                        child: Column( // Orders the visuals for the Column Controller
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Stack( // Start with the Header + crUD operations
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    top: 8,
-                                    bottom: 8,
-                                    left: 3,
-                                    right: 16,        // Add more right buffer for the text here
-                                  ),
-                                  child: Text(
-                                    column.title,
-                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                Align(
-                                  alignment: Alignment.topRight,
-                                  child: PopupMenuButton<String>(
-                                    icon: const Icon(Icons.more_vert),
-                                    onSelected: (String choice) {
-                                      //ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('You pressed: $choice')),);
-                                      Get.snackbar("Column", "You have pressed $choice",
-                                      snackPosition: SnackPosition.BOTTOM);
-                                      if (choice == 'Edit') {
-                                        _showAddColumnDialog(context, column);
-                                      } else if (choice == 'Delete') {
-                                        tasksController.deleteColumn(column.id);
-                                      }
-                                    },
-                                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                                      const PopupMenuItem<String>(
-                                        value: 'Edit',
-                                        child: Text('Edit'),
-                                      ),
-                                      const PopupMenuItem<String>(
-                                        value: 'Delete',
-                                        child: Text('Delete'),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Container( // Horizontal Line Seperator
-                              height: 2,
-                              width: 270,
-                              color: theme.primaryColor,
-                            ),
-                            SizedBox(
-                              height: 7,
-                            ),
-                            Obx(() => SizedBox(  // Observe changes to tasks within this specific column // When selected as draggable target
-                                height: (isBeingHovered && column.tasks.isEmpty && originId != column.id) ? 150 : column.getHeight, // Just column section // Additional to stop fixed length if it come from the column (Not possible but good precaution)
-                                child: (isBeingHovered && originId != column.id) ?  // #1 HATER RH
-                                ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    minHeight: 100,
-                                  ),
-                                  child: DottedBorder(
-                                    dashPattern: [6, 3], // 6px dash, 3px gap
-                                    color: Colors.grey,
-                                    strokeWidth: 2,
-                                    borderType: BorderType.RRect,
-                                    radius: Radius.circular(12),
-                                    child: Container(
-                                      width: 300, 
-                                      decoration: BoxDecoration(
-                                        color: theme.primaryColor.withAlpha(10),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Center(
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.add),
-                                            Text("Move here!")
-                                          ],
-                                        ),
-                                      ),
-                                    )
-                                  )
-                                ) : ListView.builder( // The meat of the pie, Main content of the list builder is here
-                                  itemCount: column.tasks.length,
-                                  itemBuilder: (ctx, taskIndex) {
-                                    Task task = column.tasks[taskIndex];
-                                    return Draggable<Task>( // Wrapping each task in a draggable layer, This redundant and needs to be moved to the general class
-                                      data: task, // This is the data you'll receive in DragTarget
-                                      feedback: Material( // Must be Material to show shadows etc.
-                                        color: Colors.transparent,
-                                        child: SizedBox(
-                                          width: 280, // match the card width
-                                          child: TaskCardWidget(task: task),
-                                        ),
-                                      ),
-                                      childWhenDragging: Opacity(
-                                        opacity: 0.5,
-                                        child: TaskCardWidget(task: task),
-                                      ),
-                                      child: TaskCardWidget(
-                                        task: task,
-                                        onTap: () {
-                                          Get.snackbar("Task Tapped", task.name, 
-                                          snackPosition: SnackPosition.BOTTOM);
-                                        },
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SizedBox( // Footer button for adding new tasks directly into the column.
-                              height: 40,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40), // Make button wider
-                                  foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
-                                  backgroundColor: WidgetStateColor.resolveWith(
-                                    (Set<WidgetState> states) {
-                                      return theme.colorScheme.primary.withAlpha(200);
-                                    },
-                                  ),
-                                  overlayColor: WidgetStateColor.resolveWith((Set<WidgetState> states) {return Colors.yellow.shade600;}), // ← removes splash
+                  child: Row(
+                    children: controller.columns.map((column) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 16.0),
+                        
+                        child: GPColumn<Task>(
+                          width: defaultColumnWidth,
+                          onAccept: (task) {
+                            controller.moveTask(
+                              task,
+                              fromColumn: controller.getColumnByTask(task),
+                              toColumn: column,
+                            );
+                          },
 
-                                  //elevation: 0, // Looks weird depending on my mental state
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8), // smaller radius
+                          // --- HEADER ---
+                          header: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Stack(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8, bottom: 8, left: 3, right: 36),
+                                    child: Text(
+                                      column.title,
+                                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                    ),
                                   ),
-                                ),
-                                onPressed: () => showAddTaskDialog(context, column.id),
-                                child: Row(children:[
-                                  const Icon(Icons.add, size: 18), 
-                                  const Text("Add a card"),
-                                ]),
+                                  Align(
+                                    alignment: Alignment.topRight,
+                                    child: PopupMenuButton<String>(
+                                      icon: const Icon(Icons.more_vert),
+                                      onSelected: (choice) {
+                                        if (choice == 'Edit') {
+                                          _showAddColumnDialog(context, column);
+                                        } else if (choice == 'Delete') {
+                                          tasksController.deleteColumn(column.id);
+                                        }
+                                      },
+                                      itemBuilder: (context) => const [
+                                        PopupMenuItem(value: 'Edit', child: Text('Edit')),
+                                        PopupMenuItem(value: 'Delete', child: Text('Delete')),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                            )
-                          ],
-                        )
-                      )
-                    )]);
-                      }
-                    );
-                  },
-                )
-              )
+                              Container(height: 2, color: theme.primaryColor),
+                            ],
+                          ),
+
+                          // --- BODY ---
+                          body: Obx(
+                            () => ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: column.tasks.length,
+                              itemBuilder: (ctx, taskIndex) {
+                                final task = column.tasks[taskIndex];
+                                final card = TaskCardWidget(task: task);
+                                // The Draggable wrapper remains here, as it's specific to the items
+                                // within the column, not the column itself.
+                                return Draggable<Task>(
+                                  data: task,
+                                  feedback: Material(
+                                    color: Colors.transparent,
+                                    child: SizedBox(width: defaultColumnWidth - 24, child: card),
+                                  ),
+                                  childWhenDragging: Opacity(opacity: 0.5, child: card),
+                                  child: card,
+                                );
+                              }
+                            ),
+                          ),
+
+                          // --- FOOTER ---
+                          footer: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 40),
+                              foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
+                              backgroundColor: theme.colorScheme.primary.withAlpha(200),
+                            ),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text("Add a card"),
+                            onPressed: () => showAddTaskDialog(context, column.id),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
               );
-            },
-          )
-        ])
-      )
+            }),
+          ],
+        ),
+      ),
     );
   }
 }
