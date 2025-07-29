@@ -8,6 +8,8 @@ import '../widgets/task_card_widget.dart';
 import '../../../models/task_model.dart';
 import 'package:dotted_border/dotted_border.dart';
 
+// General TODO : Make a seperated container object with drag location, and seperate loader to clean things up
+
 class TasksPage extends GetView<TasksController> {
   TasksPage({super.key});
 
@@ -97,9 +99,9 @@ class TasksPage extends GetView<TasksController> {
     );
   }
 
-  String getOriginId(List<Task?> candidateData) {
+  String getOriginId(List<Task?> itemCurrentlyDragged) {
     try {
-      return controller.getColumnByTask(candidateData[0]!).id;
+      return controller.getColumnByTask(itemCurrentlyDragged[0]!).id;
     } catch (e) {
       return '';
     }
@@ -179,30 +181,31 @@ class TasksPage extends GetView<TasksController> {
                 constraints: BoxConstraints(
                   maxHeight: maxHeight,
                 ),
-                child: ListView.builder( // List builder is actually no1 op
+                child: ListView.builder( // Sets up columns to form as rows
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.all(16.0),
                   itemCount: controller.columns.length,
-                  itemBuilder: (context, index) {
+                  itemBuilder: (context, index) { // For loop to build each column with a local identifier; index
                     final column = controller.columns[index];
-                    return DragTarget<Task>(
+                    return DragTarget<Task>( // Sets the column as a drag target
                       onWillAcceptWithDetails: (task) => true,
                       onAccept: (task) {
+                        // Request the controller to complete the transfere in the data
                         controller.moveTask(task, fromColumn: controller.getColumnByTask(task), toColumn: column);
                       },
-                      builder: (_, candidateData, ___) {
-                        String originId = getOriginId(candidateData);
-                        final isBeingHovered = candidateData.isNotEmpty;
+                      builder: (_, itemCurrentlyDragged, ___) { // Identify which item to look out for.
+                        String originId = getOriginId(itemCurrentlyDragged);
+                        final isBeingHovered = itemCurrentlyDragged.isNotEmpty;
                         final estimatedHeight = calculateTextHeight(
                           text: column.title,
                           style: theme.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.bold),
                           maxWidth: defaultColumnWidth - 19, // Left and right padding of the text combined
                         );
-                      return Stack(
+                        return Stack( // This is the dynamic construction of the column containers
                       children: [
                         Obx(() => Container(
                         width: defaultColumnWidth, // Width of each column
-                        height: (isBeingHovered && column.tasks.isEmpty) ? 245 + estimatedHeight : column.getFullHeight + estimatedHeight - 30, // Condition for making everying larger
+                        height: (isBeingHovered && column.tasks.isEmpty) ? 245 + estimatedHeight : column.getFullHeight + estimatedHeight - 30, // Condition for expanding it with the amount of children it has
                         margin: const EdgeInsets.only(right: 16.0),
                         padding: const EdgeInsets.all(12.0),
                         decoration: BoxDecoration(
@@ -217,10 +220,10 @@ class TasksPage extends GetView<TasksController> {
                             )
                           ]
                         ),
-                        child: Column(
+                        child: Column( // Orders the visuals for the Column Controller
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Stack(
+                            Stack( // Start with the Header + crUD operations
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.only(
@@ -262,7 +265,7 @@ class TasksPage extends GetView<TasksController> {
                                 ),
                               ],
                             ),
-                            Container(
+                            Container( // Horizontal Line Seperator
                               height: 2,
                               width: 270,
                               color: theme.primaryColor,
@@ -270,7 +273,7 @@ class TasksPage extends GetView<TasksController> {
                             SizedBox(
                               height: 7,
                             ),
-                            Obx(() => SizedBox(  // Observe changes to tasks within this specific column
+                            Obx(() => SizedBox(  // Observe changes to tasks within this specific column // When selected as draggable target
                                 height: (isBeingHovered && column.tasks.isEmpty && originId != column.id) ? 150 : column.getHeight, // Just column section // Additional to stop fixed length if it come from the column (Not possible but good precaution)
                                 child: (isBeingHovered && originId != column.id) ?  // #1 HATER RH
                                 ConstrainedBox(
@@ -300,11 +303,11 @@ class TasksPage extends GetView<TasksController> {
                                       ),
                                     )
                                   )
-                                ) : ListView.builder(
+                                ) : ListView.builder( // The meat of the pie, Main content of the list builder is here
                                   itemCount: column.tasks.length,
                                   itemBuilder: (ctx, taskIndex) {
                                     Task task = column.tasks[taskIndex];
-                                    return Draggable<Task>(
+                                    return Draggable<Task>( // Wrapping each task in a draggable layer, This redundant and needs to be moved to the general class
                                       data: task, // This is the data you'll receive in DragTarget
                                       feedback: Material( // Must be Material to show shadows etc.
                                         color: Colors.transparent,
@@ -330,7 +333,7 @@ class TasksPage extends GetView<TasksController> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            SizedBox(
+                            SizedBox( // Footer button for adding new tasks directly into the column.
                               height: 40,
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(

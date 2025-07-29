@@ -29,7 +29,7 @@ class AuthController extends GetxController {
         : GoogleSignIn();
 
     firebaseUser.bindStream(_auth.authStateChanges());
-    ever(firebaseUser, _setInitialScreen);
+    //ever(firebaseUser, _setInitialScreen);
   }
 
   void _setInitialScreen(User? user) {

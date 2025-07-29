@@ -5,6 +5,8 @@ import '../../../controllers/tasks_controller.dart';
 //import 'add_task_dialog.dart'; // Edit Button, Edit mode has not been re-added yet
 import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
 
+// TODO : Make a getHeight() function to make the column expansion more smooth
+
 class TaskCardWidget extends StatelessWidget {
   final Task task;
   final VoidCallback? onTap; // For opening task details later
