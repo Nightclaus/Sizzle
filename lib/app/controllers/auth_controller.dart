@@ -21,14 +21,6 @@ class AuthController extends GetxController {
   void onInit() {
     super.onInit();
 
-    // Baraam code, delete later
-
-    //final _firestore = FirebaseFirestore.instance;
-    //final firestoreRef = _firestore.collection('sdfdsf').doc();
-    //_firestore.collection('sdfdsfds').doc(firestoreRef.id).get
-
-    // baraam code ends
-
     final clientId = dotenv.env['GOOGLE_CLIENT_ID'];
     assert(clientId != null, 'GOOGLE_CLIENT_ID is missing from .env');
 
@@ -130,3 +122,11 @@ class AuthController extends GetxController {
     }
   }
 }
+
+    // Baraam code, delete later
+
+    //final _firestore = FirebaseFirestore.instance;
+    //final firestoreRef = _firestore.collection('sdfdsf').doc();
+    //_firestore.collection('sdfdsfds').doc(firestoreRef.id).get
+
+    // baraam code ends

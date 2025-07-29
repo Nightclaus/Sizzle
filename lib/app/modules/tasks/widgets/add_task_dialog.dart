@@ -1,142 +1,90 @@
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter/material.dart';
 import '../../../models/task_model.dart';
 import '../../../controllers/tasks_controller.dart';
+import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
 
 Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? existingTask]) async {
   final tasksController = Get.find<TasksController>();
-  final formKey = GlobalKey<FormState>();
+  final Uuid uuid = const Uuid();
 
-  bool editMode = false;
+  bool editMode = false; // ie title: Text((editMode ? 'Edit Task' : 'Add New Task')),
   if (existingTask != null) {
     editMode = true;
   }
 
-  final nameController = TextEditingController(text: editMode ? existingTask!.name : "");
-  final descriptionController = TextEditingController(text: editMode ? existingTask!.description : "");
-  var selectedTag = editMode ? tasksController.stringToObs[existingTask!.task_tag]! : TaskTag.work.obs;
-  var selectedImportance = editMode ? tasksController.stringToObs[existingTask!.task_importance]! : TaskImportance.medium.obs;
-  final Uuid uuid = const Uuid();
-  final theme = Theme.of(context);
+  // Define the structure of your form. This can be stored anywhere.
+  final formFields = [
+    {
+      'key': 'name',
+      'type': 'text',
+      'label': 'Task Name',
+      'initialValue': '',
+      'required': true,
+    },
+    {
+      'key': 'description',
+      'type': 'text',
+      'label': 'Description (Optional)',
+      'initialValue': '',
+      'maxLines': 2,
+    },
+    {
+      'key': 'tag',
+      'type': 'dropdown',
+      'label': 'Tag',
+      'options': ['work', 'passion'], // Using simple strings
+      'initialValue': 'work',
+      'required': true,
+    },
+    {
+      'key': 'importance',
+      'type': 'dropdown',
+      'label': 'Importance',
+        'options': ['high', 'medium', 'low'],
+        'initialValue': 'medium',
+        'required': true,
+      },
+    ];
 
-  Color lightenColor(Color color, [int amount = 100]) {
-    return Color.alphaBlend(Colors.white.withAlpha(amount), color);
+    return GPFormDialog.show(
+      context: context,
+      title: 'Add New Task',
+      fields: formFields,
+      submitButtonText: 'Add Task',
+      onSubmit: (formData) {
+        Get.snackbar(
+          'New Item Added',
+          'Data: ${formData.toString()}',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+
+        late Task newTask;
+        //if (formData.isNotEmpty) {
+        if (!editMode) {
+          newTask = Task(
+            id: uuid.v4(), // Used v4 for full randomness
+            name: formData['name'],
+            description: formData['description'],
+            tag: getTaskTag(formData['tag'])!,
+            importance: getTaskImportance(formData['importance'])!,
+            parentId: columnId,
+          );
+        } else { // TODO : RE-ADD EDIT FUNCTION
+          newTask = Task(
+            id: uuid.v4(), // Used v4 for full randomness
+            name: formData['name'],
+            description: formData['description'],
+            tag: getTaskTag(formData['tag'])!,
+            importance: getTaskImportance(formData['importance'])!,
+            parentId: columnId,
+          );
+          //tasksController.clearTask(columnId, originalId);
+        }
+        tasksController.addTaskToColumn(columnId, newTask);
+        tasksController.addTaskToDatabase(columnId, newTask);
+        Get.back(); // Close the dialog
+      },
+    );
   }
-  Color dropdownMenuColor = lightenColor(theme.primaryColor, 70);
-
-  return Get.dialog( // Using Get.dialog for simplicity
-    AlertDialog(
-      backgroundColor: Colors.white,
-      insetPadding: EdgeInsets.only(
-        top: 12,
-        left: 16,
-        right: 16,
-        bottom: 24
-      ),
-      title: Text((editMode ? 'Edit Task' : 'Add New Task')),
-      content: SingleChildScrollView(
-        child: Form(
-          key: formKey,
-          child: SizedBox(
-            width: 300,
-            child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              TextFormField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Task Name'),
-                validator: (value) => value!.isEmpty ? 'Please enter a name' : null,
-              ),
-              TextFormField(
-                controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'Description (Optional)'),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-              Obx(() => DropdownButtonFormField<TaskTag>(
-                    decoration: const InputDecoration(labelText: 'Tag'),
-                    dropdownColor: dropdownMenuColor,
-                    value: selectedTag.value,
-                    items: TaskTag.values
-                        .map((tag) => DropdownMenuItem(
-                              value: tag,
-                              child: Text(tag.toString().split('.').last.capitalizeFirst!),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) selectedTag.value = value;
-                    },
-                  )),
-              Obx(() => DropdownButtonFormField<TaskImportance>(
-                    decoration: const InputDecoration(labelText: 'Importance'),
-                    dropdownColor: dropdownMenuColor,
-                    value: selectedImportance.value,
-                    items: TaskImportance.values
-                        .map((imp) => DropdownMenuItem(
-                              value: imp,
-                              child: Text(imp.toString().split('.').last.capitalizeFirst!),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) selectedImportance.value = value;
-                    },
-                  )),
-            ],
-          ),
-          ),
-        ),
-      ),
-      actions: <Widget>[
-        TextButton(
-          style: ElevatedButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8))
-            )
-          ),
-          child: const Text('Cancel'),
-          onPressed: () => Get.back(),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
-            backgroundColor: theme.primaryColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8))
-            )
-          ),
-          child: Text(editMode ? "Edit Task" : 'Add Task'),
-          onPressed: () {
-            if (formKey.currentState!.validate()) {
-              late Task newTask;
-              if (!editMode) {
-                newTask = Task(
-                  id: uuid.v4(), // Used v4 for full randomness
-                  name: nameController.text.trim(),
-                  description: descriptionController.text.trim(),
-                  tag: selectedTag.value,
-                  importance: selectedImportance.value,
-                  parentId: columnId,
-                );
-              } else {
-                String originalId = existingTask!.id;
-                newTask = Task(
-                  id: originalId,
-                  name: nameController.text.trim(),
-                  description: descriptionController.text.trim(),
-                  tag: selectedTag.value,
-                  importance: selectedImportance.value,
-                  parentId: columnId,
-                );
-                tasksController.clearTask(columnId, originalId);
-              }
-              tasksController.addTaskToColumn(columnId, newTask);
-              tasksController.addTaskToDatabase(columnId, newTask);
-              Get.back(); // Close the dialog
-            }
-          },
-        ),
-      ],
-    ),
-  );
-}

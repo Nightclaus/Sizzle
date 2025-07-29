@@ -3,6 +3,54 @@ import 'package:flutter/material.dart';
 enum TaskTag { passion, work }                // Set categories
 enum TaskImportance { high, medium, low }     // Set categories
 
+extension TaskTagExtension on TaskTag {
+  String get asString {
+    switch (this) {
+      case TaskTag.passion:
+        return "passion";
+      case TaskTag.work:
+        return "work";
+    }
+  }
+}
+
+extension TaskImportanceExtension on TaskImportance {
+  String get asString {
+    switch (this) {
+      case TaskImportance.high:
+        return "high";
+      case TaskImportance.medium:
+        return "medium";
+      case TaskImportance.low:
+        return "low";
+    }
+  }
+}
+
+TaskTag? getTaskTag(String tag) {
+  switch (tag) {
+    case "passion":
+      return TaskTag.passion;
+    case "work":
+      return TaskTag.work;
+    default:
+      return null;
+  }
+}
+
+TaskImportance? getTaskImportance(String importance) {
+  switch (importance.toLowerCase()) {
+    case "high":
+      return TaskImportance.high;
+    case "medium":
+      return TaskImportance.medium;
+    case "low":
+      return TaskImportance.low;
+    default:
+      return null;
+  }
+}
+
 class Task {
   final String id;
   String name;
@@ -24,16 +72,17 @@ class Task {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  String get task_tag {
+  /////////////////////////////////////////
+  String get task_tag { // Legacy
     switch (tag) {
       case TaskTag.passion:
         return "passion";
       case TaskTag.work:
         return "work";
     }
-  }
+  } // Legacy
 
-  String get task_importance {
+  String get task_importance { // Legacy
     switch (importance) {
       case TaskImportance.high:
         return "high";
@@ -42,7 +91,9 @@ class Task {
       case TaskImportance.low:
         return "low";
     }
-  }
+  } // Legacy
+  /////////////////////////////////////////
+
   // Helper to get color for importance
   Color get importanceColor {
     switch (importance) {
