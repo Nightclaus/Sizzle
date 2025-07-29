@@ -15,6 +15,15 @@ Color lightenColor(Color color, [int amount = 100]) {
   return Color.alphaBlend(Colors.white.withAlpha(amount), color);
 }
 
+bool isOverflowing(GlobalKey containerKey, GlobalKey contentKey) {
+  final containerBox = containerKey.currentContext?.findRenderObject() as RenderBox?;
+  final contentBox = contentKey.currentContext?.findRenderObject() as RenderBox?;
+
+  if (containerBox == null || contentBox == null) return false;
+
+  return contentBox.size.height > containerBox.size.height;
+}
+
 /////////////////////////////////////////////////////////////////////////
 
 class GPFormDialog {
@@ -433,19 +442,18 @@ class GPColumn<T extends Object> extends StatelessWidget {
       builder: (context, candidateData, rejectedData) {
         final isBeingHovered = candidateData.isNotEmpty;
         final theme = Theme.of(context);
-
+        
         // The container no longer has a height property. Its height will be
         // determined by the Column child.
         return Container(
           width: width,
-          // height: height, // REMOVED
           margin: margin ?? const EdgeInsets.only(right: 16.0),
           decoration: decoration ?? BoxDecoration( // Shadow
                 color: theme.cardColor,
                 borderRadius: BorderRadius.circular(12.0),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withAlpha(150),
                     spreadRadius: 1,
                     blurRadius: 3,
                     offset: const Offset(0, 2),
@@ -464,9 +472,16 @@ class GPColumn<T extends Object> extends StatelessWidget {
                 if (isBeingHovered)
                   _buildHoverUI(context)
                 else
-                  Expanded( // So simple and elegant, TODO: Remove obx getx scroller in `tasks_view.dart`
-                    child: SingleChildScrollView(
-                      child: body
+                  Container(
+                    clipBehavior: Clip.none, // Holy grail
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height - 250, // or whatever offset
+                        minHeight: 20
+                      ),
+                      child: SingleChildScrollView(
+                        child: body,
+                      ),
                     ),
                   ),
                 const SizedBox(height: 8),
