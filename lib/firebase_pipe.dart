@@ -1,3 +1,7 @@
+/////////////////////////////
+///      DEPRECIATED      ///
+/////////////////////////////
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:flutter_dotenv/flutter_dotenv.dart';
