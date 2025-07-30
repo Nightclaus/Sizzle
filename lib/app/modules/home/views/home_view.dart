@@ -5,6 +5,8 @@ import '../../../controllers/workspaces_controller.dart';
 import '../../../helpers/workspace_dialog_helper.dart';
 import '../../../models/workspace_model.dart';
 import '../../../helpers/profile_dialogue_helper.dart'; 
+import '../../../helpers/nav_bar.dart'; 
+
 
 class HomeScreen extends GetView<WorkspacesController> {
   const HomeScreen({Key? key}) : super(key: key);
@@ -15,6 +17,7 @@ class HomeScreen extends GetView<WorkspacesController> {
     Get.put(WorkspacesController());
 
     return Scaffold(
+      appBar: SizzleNavBar(),
       body: Row(
         children: [
           _buildLeftPanel(),

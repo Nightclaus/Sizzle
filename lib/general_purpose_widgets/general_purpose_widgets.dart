@@ -389,24 +389,43 @@ class GPText extends StatelessWidget {
 /////////////////////////////////////////////////////////////////////////
 
 class GPPopup {
- static Future<void> show(BuildContext context, {required Widget content}) {
- return showDialog<void>(
- context: context,
- builder: (BuildContext context) {
- return AlertDialog(
- content: content,
- actions: <Widget>[
- TextButton(
- child: const Text('Close'),
- onPressed: () {
- Navigator.of(context).pop();
- },
- ),
- ],
- );
- },
- );
- }
+  /// Shows a customizable dialog.
+  ///
+  /// - [title]: The required title displayed at the top of the dialog.
+  /// - [content]: The required main widget to display in the dialog's body.
+  /// - [actions]: An optional list of custom action buttons (e.g., TextButton,
+  ///   ElevatedButton). If not provided, a default "Close" button is shown.
+  static Future<void> show({
+    required String title,
+    required Widget content,
+    List<Widget>? actions,
+  }) {
+    // 1. Use Get.dialog() - no BuildContext needed.
+    return Get.dialog(
+      AlertDialog(
+        // Set the title using a Text widget for proper styling.
+        title: Text(title),
+        
+        // Pass the content widget directly.
+        content: content,
+        
+        // --- ACTION HANDLING LOGIC ---
+        // Use the null-aware coalescing operator (??) to provide a default.
+        // If the 'actions' list is null, it uses the default TextButton.
+        actions: actions ??
+            [
+              TextButton(
+                child: const Text('Close'),
+                // 3. Use Get.back() to close the dialog.
+                onPressed: () => Get.back(),
+              ),
+            ],
+      ),
+      // It's good practice to make important dialogs non-dismissible by default.
+      // The user must interact with one of the action buttons.
+      barrierDismissible: false,
+    );
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////

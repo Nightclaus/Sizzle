@@ -247,10 +247,34 @@ GPSelectableCard(
               const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: () {
-                  GPPopup.show(
-                    context,
-                    content: const Text('This is a general-purpose popup dialog!'),
-                  );
+                  // Call this from a "Delete" button's onPressed method
+GPPopup.show(
+  title: "Confirm Deletion",
+  content: const Text("Are you sure you want to delete this workspace? This action cannot be undone."),
+  // We provide our own list of custom buttons.
+  actions: [
+    // A "Cancel" button that just closes the dialog.
+    TextButton(
+      child: const Text("Cancel"),
+      onPressed: () => Get.back(),
+    ),
+    // A more prominent "Delete" button that performs an action.
+    ElevatedButton(
+      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+      child: const Text("Delete", style: TextStyle(color: Colors.white)),
+      onPressed: () {
+        // DELETION LOGIC
+        // e.g., controller.deleteWorkspace(workspaceId);
+        
+        // Close the dialog after the action is complete.
+        Get.back();
+        
+        // Optionally show a confirmation snackbar.
+        Get.snackbar("Success", "The workspace has been deleted.");
+      },
+    )
+  ],
+);
                 },
                 child: const Text('Show Popup'),
               ),

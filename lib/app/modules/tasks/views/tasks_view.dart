@@ -7,15 +7,9 @@ import '../../../controllers/tasks_controller.dart';
 import '../widgets/task_card_widget.dart'; // For Widget Tasks
 import '../../../models/task_model.dart';
 import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
-
-
-
-// Note: All helper methods (_showAddColumnDialog, etc.) and the Scaffold/AppBar
-// remain unchanged as they are part of the page's logic. The changes are
-// focused entirely within the ListView.builder's itemBuilder.
+import '../../../helpers/nav_bar.dart'; 
 
 class TasksPage extends GetView<TasksController> {
-    // ... (All code before the build method remains the same) ...
   final AuthController authController = Get.find<AuthController>(); // For logout
   final double  defaultColumnWidth = 300;
 
@@ -23,8 +17,6 @@ class TasksPage extends GetView<TasksController> {
     return Color.alphaBlend(Colors.white.withAlpha(amount), color);
   }
 
-
-  
   void _showAddColumnDialog(BuildContext context, [TaskColumn? existingColumn]) {
     // 1. Set up mode-specific variables
     final bool editMode = existingColumn != null;
@@ -77,28 +69,7 @@ class TasksPage extends GetView<TasksController> {
     final tasksController = Get.find<TasksController>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            SizedBox(width: 9),
-            Text("Sizle /", style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(" My Tasks"),
-          ]
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: "Add Column",
-            onPressed: () => _showAddColumnDialog(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: "Sign Out",
-            onPressed: () => authController.signOut(),
-          )
-        ],
-      ),
+      appBar: SizzleNavBar(),
       backgroundColor: Colors.black,
       body: SizedBox.expand(
         child: Stack(
