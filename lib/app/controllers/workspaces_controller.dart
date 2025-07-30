@@ -89,10 +89,10 @@ class WorkspacesController extends GetxController {
       }, SetOptions(merge: true));
 
       await fetchJoinedWorkspaces(); // Refresh the list
-      Get.snackbar("Success", "Workspace '$name' created!");
+      Get.snackbar("Success", "Workspace '$name' created!", snackPosition: SnackPosition.BOTTOM);
 
     } catch(e) {
-      Get.snackbar("Error", "Could not create workspace.");
+      Get.snackbar("Error", "Could not create workspace.", snackPosition: SnackPosition.BOTTOM);
     } finally {
       isLoading.value = false;
     }
@@ -108,7 +108,7 @@ class WorkspacesController extends GetxController {
       final query = await _firestore.collection('Workspaces').where('join_code', isEqualTo: joinCode.trim()).limit(1).get();
 
       if (query.docs.isEmpty) {
-        Get.snackbar("Error", "No workspace found with that code.");
+        Get.snackbar("Error", "No workspace found with that code.", snackPosition: SnackPosition.BOTTOM);
         return;
       }
 
@@ -121,10 +121,10 @@ class WorkspacesController extends GetxController {
       }, SetOptions(merge: true));
 
       await fetchJoinedWorkspaces(); // Refresh the list
-      Get.snackbar("Success", "You have joined the workspace!");
+      Get.snackbar("Success", "You have joined the workspace!", snackPosition: SnackPosition.BOTTOM);
 
     } catch(e) {
-      Get.snackbar("Error", "Could not join workspace.");
+      Get.snackbar("Error", "Could not join workspace.", snackPosition: SnackPosition.BOTTOM);
     } finally {
       isLoading.value = false;
     }

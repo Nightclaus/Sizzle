@@ -41,11 +41,11 @@ void showProfileSetupDialog(VoidCallback onComplete) {
         await profileDocRef.set(profileData.toMap());
 
         Get.back(); // Close loading dialog
-        Get.snackbar('Welcome!', 'Your profile has been set up.', backgroundColor: Colors.green, colorText: Colors.white);
+        Get.snackbar('Welcome!', 'Your profile has been set up.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
         onComplete();
       } catch (e) {
         Get.back(); // Close loading dialog
-        Get.snackbar('Error', 'Failed to save profile. Please try again.', backgroundColor: Colors.red, colorText: Colors.white);
+        Get.snackbar('Error', 'Failed to save profile. Please try again.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
         onComplete();
       }
     },

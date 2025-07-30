@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:dotted_border/dotted_border.dart'; // Add `dotted_border` to pubspec.yaml
+import 'package:dotted_border/dotted_border.dart'; // Could make this a general purpose widget aswell
 import '../../../controllers/workspaces_controller.dart';
 import '../../../helpers/workspace_dialog_helper.dart';
 import '../../../models/workspace_model.dart';
-// Also import your profile dialog helper if you have it in a separate file
 import '../../../helpers/profile_dialogue_helper.dart'; 
 
 class HomeScreen extends GetView<WorkspacesController> {
@@ -12,8 +11,7 @@ class HomeScreen extends GetView<WorkspacesController> {
 
   @override
   Widget build(BuildContext context) {
-    // You must 'put' the controller somewhere, usually in a binding or before navigating.
-    // For this example, we'll just put it here.
+    // controller is lazy loaded via bindings, but it is here aswell
     Get.put(WorkspacesController());
 
     return Scaffold(
@@ -34,8 +32,9 @@ class HomeScreen extends GetView<WorkspacesController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const SizedBox(height: 10), // Just padding bonus, dont look 4 lines above
           _buildUserProfilePreview(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           const Divider(color: Colors.white54),
           const SizedBox(height: 16),
           _buildNotificationsPanel(),
@@ -53,8 +52,7 @@ class HomeScreen extends GetView<WorkspacesController> {
       return GestureDetector(
         onTap: () {
           // Re-opens the account setup dialog for editing
-          // Assumes you have a helper for this from previous steps
-          showProfileSetupDialog(() {}); 
+          showProfileSetupDialog(() {controller.fetchUserProfile();}); 
         },
         child: Row(
           children: [
@@ -86,7 +84,13 @@ class HomeScreen extends GetView<WorkspacesController> {
   Widget _buildNotificationsPanel() {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(12),
+        width: double.infinity,
+        padding: const EdgeInsets.only( // Visual Style
+          top: 30,
+          left: 20,
+          right: 12,
+          bottom: 50,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFFE0E0E0), // Light Grey
           borderRadius: BorderRadius.circular(12),
@@ -98,7 +102,7 @@ class HomeScreen extends GetView<WorkspacesController> {
               "Notifications",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Obx(() => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: controller.notifications.map((note) => Padding(
@@ -150,7 +154,7 @@ class HomeScreen extends GetView<WorkspacesController> {
     return GestureDetector(
       onTap: () {
         /// Do something Placeholder
-        Get.snackbar("Workspace Tapped", "You pressed on '${workspace.name}'");
+        Get.snackbar("Workspace Tapped", "You pressed on '${workspace.name}'", snackPosition: SnackPosition.BOTTOM);
         // Example: Get.toNamed(Routes.TASKS, arguments: workspace.id);
       },
       child: SizedBox(
