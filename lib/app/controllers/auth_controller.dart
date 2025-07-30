@@ -65,7 +65,10 @@ class AuthController extends GetxController {
         // Profile does not exist. Show the setup dialog.
         // Add a small delay to ensure the UI is fully ready after login.
         await Future.delayed(const Duration(milliseconds: 300));
-        showProfileSetupDialog(() {Get.offAllNamed(destination);});
+        //bool hasCompletedFrom = false;
+        showProfileSetupDialog(() {
+            Get.offAllNamed(destination);
+        });
       }
     } catch (e) {
       Get.snackbar('Error', 'Could not verify user profile. Navigating to home.');

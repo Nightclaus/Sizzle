@@ -19,46 +19,49 @@ class WorkspacesController extends GetxController {
   // Dummy data for notifications
   RxList<String> notifications = <String>["- Join a workspace"].obs;
 
-  // --- NEW STATE VARIABLE ---
   // This will hold the join code of the most recently created workspace.
   var latestJoinCode = ''.obs;
-  // --- END OF NEW VARIABLE ---
 
   @override
   void onInit() {
     super.onInit();
     fetchInitialData();
 
-    // --- SET UP THE WORKER ---
     // This worker listens to changes in 'latestJoinCode'.
     ever(latestJoinCode, (String code) {
-      // If the code is not empty, it means we just created a workspace
-      // and need to show the popup.
       if (code.isNotEmpty) {
         _showJoinCodePopup(code);
       }
     });
-    // --- END OF WORKER SETUP ---
   }
 
   Future<void> createWorkspace(String name) async {
     final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
+    if (userId == null) {
+      Get.snackbar("Error", "You must be logged in to create a workspace.");
+      return;
+    }
 
-    // Clear any previous code before starting.
     latestJoinCode.value = '';
     isLoading.value = true;
 
     try {
       final newWorkspaceRef = _firestore.collection('Workspaces').doc();
       final joinCode = _generateJoinCode();
+      
+      // --- MODIFICATION #1 ---
+      // We add the 'members' field during workspace creation.
       await newWorkspaceRef.set({
         'name': name,
         'join_code': joinCode,
         'ownerId': userId,
         'createdAt': FieldValue.serverTimestamp(),
+        // The creator is automatically the first member.
+        'members': [userId],
       });
+      // --- END OF MODIFICATION ---
 
+      // This part is unchanged: add the workspace ID to the user's personal list.
       final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc('list');
       await userWorkspacesRef.set({
         'ids': FieldValue.arrayUnion([newWorkspaceRef.id])
@@ -66,9 +69,7 @@ class WorkspacesController extends GetxController {
 
       await fetchJoinedWorkspaces(); // Refresh the list
       
-      // --- CRITICAL CHANGE ---
-      // Instead of showing a popup, we just update the state.
-      // The 'ever' worker will handle showing the UI.
+      // This part is unchanged: trigger the popup via the state variable.
       latestJoinCode.value = joinCode;
 
     } catch (e) {
@@ -78,8 +79,7 @@ class WorkspacesController extends GetxController {
     }
   }
 
-  // --- NEW HELPER METHOD INSIDE THE CONTROLLER ---
-  // This method builds and shows the popup. It's called by the 'ever' worker.
+  // This method is unchanged
   void _showJoinCodePopup(String code) {
     GPPopup.show(
       title: "Workspace Created!",
@@ -97,10 +97,10 @@ class WorkspacesController extends GetxController {
           ),
         ],
       ),
-      // No 'actions' are provided, so it will automatically get a "Close" button.
     );
   }
 
+  // This method is unchanged
   Future<void> fetchInitialData() async {
     isLoading.value = true;
     await fetchUserProfile();
@@ -108,6 +108,7 @@ class WorkspacesController extends GetxController {
     isLoading.value = false;
   }
 
+  // This method is unchanged
   Future<void> fetchUserProfile() async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return;
@@ -118,13 +119,11 @@ class WorkspacesController extends GetxController {
     }
   }
 
+  // This method is unchanged
   Future<void> fetchJoinedWorkspaces() async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return;
     
-    // In a real app, you might have a document per user listing their workspace IDs
-    // For this example, we'll assume a subcollection or array exists.
-    // This logic assumes an array 'workspaceIds' in a doc called 'list'.
     final userWorkspacesDoc = await _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc('list').get();
 
     if (!userWorkspacesDoc.exists) {
@@ -137,8 +136,7 @@ class WorkspacesController extends GetxController {
       joinedWorkspaces.clear();
       return;
     }
-
-    // Fetch all workspace documents in a single query
+    
     final querySnapshot = await _firestore.collection('Workspaces').where(FieldPath.documentId, whereIn: workspaceIds).get();
     
     joinedWorkspaces.value = querySnapshot.docs.map((doc) => Workspace.fromFirestore(doc)).toList();
@@ -146,21 +144,36 @@ class WorkspacesController extends GetxController {
 
   Future<void> joinWorkspace(String joinCode) async {
     final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
+    if (userId == null) {
+      Get.snackbar("Error", "You must be logged in to join a workspace.");
+      return;
+    }
 
     isLoading.value = true;
     try {
-      // Find the workspace with the given join code
       final query = await _firestore.collection('Workspaces').where('join_code', isEqualTo: joinCode.trim()).limit(1).get();
 
       if (query.docs.isEmpty) {
         Get.snackbar("Error", "No workspace found with that code.", snackPosition: SnackPosition.BOTTOM);
+        isLoading.value = false; // Stop loading indicator
         return;
       }
 
-      final workspaceId = query.docs.first.id;
+      final workspaceDoc = query.docs.first;
+      final workspaceId = workspaceDoc.id;
 
-      // Add it to the user's list of joined workspaces
+      // --- MODIFICATION #2 ---
+      // Get a reference to the specific workspace document.
+      final workspaceRef = _firestore.collection('Workspaces').doc(workspaceId);
+
+      // Atomically add the current user's UID to the 'members' array.
+      // arrayUnion prevents duplicates if the user is already a member.
+      await workspaceRef.update({
+        'members': FieldValue.arrayUnion([userId]),
+      });
+      // --- END OF MODIFICATION ---
+
+      // This part is unchanged: add the workspace ID to the user's personal list.
       final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc('list');
       await userWorkspacesRef.set({
         'ids': FieldValue.arrayUnion([workspaceId])
@@ -176,6 +189,7 @@ class WorkspacesController extends GetxController {
     }
   }
 
+  // This method is unchanged
   String _generateJoinCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random();
