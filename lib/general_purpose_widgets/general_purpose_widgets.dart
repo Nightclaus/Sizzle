@@ -257,28 +257,30 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
             children: [
               // Edit and Delete Buttons (Top Right)
               if (widget.onEdit != null || widget.onDelete != null)
-                Row(
-                  children: [
-                    const Spacer(), // Pushes buttons to the right
-                    if (widget.onEdit != null)
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        iconSize: 20.0,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: widget.onEdit,
-                      ),
-                    if (widget.onEdit != null && widget.onDelete != null)
-                      const SizedBox(width: 5),
-                    if (widget.onDelete != null)
-                      IconButton(
-                        icon: const Icon(Icons.delete),
-                        iconSize: 20.0,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: widget.onDelete,
-                      ),
-                  ],
+                SizedBox(height: 35, child: // Aligned using the center position of a 35p high box
+                  Row(
+                    children: [
+                      const Spacer(), // Pushes buttons to the right
+                      if (widget.onEdit != null)
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          iconSize: 20.0,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: widget.onEdit,
+                        ),
+                      if (widget.onEdit != null && widget.onDelete != null)
+                        const SizedBox(width: 5),
+                      if (widget.onDelete != null)
+                        IconButton(
+                          icon: const Icon(Icons.delete),
+                          iconSize: 20.0,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: widget.onDelete,
+                        ),
+                    ],
+                  ),
                 ),
               // Main Card Content
               Column(
@@ -442,7 +444,7 @@ class GPColumn<T extends Object> extends StatelessWidget {
       builder: (context, candidateData, rejectedData) {
         final isBeingHovered = candidateData.isNotEmpty;
         final theme = Theme.of(context);
-        
+
         // The container no longer has a height property. Its height will be
         // determined by the Column child.
         return Container(
@@ -477,7 +479,7 @@ class GPColumn<T extends Object> extends StatelessWidget {
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                         maxHeight: MediaQuery.of(context).size.height - 250, // or whatever offset
-                        minHeight: 20
+                        minHeight: 10
                       ),
                       child: SingleChildScrollView(
                         child: body,
@@ -510,8 +512,7 @@ class GPColumn<T extends Object> extends StatelessWidget {
         borderType: BorderType.RRect,
         radius: const Radius.circular(12),
         child: Container(
-          width: double.infinity,
-          height: double.infinity,
+          height: 200,
           decoration: BoxDecoration(
             color: theme.primaryColor.withAlpha(10),
             borderRadius: BorderRadius.circular(12),
@@ -531,4 +532,5 @@ class GPColumn<T extends Object> extends StatelessWidget {
     );
   }
 }
+
 /////////////////////////////////////////////////////////////////////////

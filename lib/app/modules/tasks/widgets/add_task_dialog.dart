@@ -82,8 +82,7 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? exi
           );
           //tasksController.clearTask(columnId, originalId);
         }
-        tasksController.addTaskToColumn(columnId, newTask);
-        tasksController.addTaskToDatabase(columnId, newTask);
+        tasksController.addTask(columnId, newTask);
         Get.back(); // Close the dialog
       },
     );

@@ -24,79 +24,51 @@ class TasksPage extends GetView<TasksController> {
   }
 
 
+  
   void _showAddColumnDialog(BuildContext context, [TaskColumn? existingColumn]) {
-    final theme = Theme.of(context);
+    // 1. Set up mode-specific variables
+    final bool editMode = existingColumn != null;
+    final String dialogTitle = editMode ? "Edit Column" : "Add New Column";
+    final String submitText = editMode ? "Finish" : "Add";
 
-    bool editMode = false;
-    if (existingColumn != null) {
-      editMode = true;
-    }
+    // 2. Define the form structure as data
+    //    This replaces the manual Column, Text, and TextField.
+    final formFields = [
+      {
+        'key': 'title',
+        'type': 'text',
+        'label': 'Column Title',
+        'required': true,
+      },
+      // Note: The descriptive text ("Get started by...") is omitted for simplicity,
+      // as our GPFormDialog focuses purely on the form fields.
+    ];
 
-    final TextEditingController columnTitleController = TextEditingController(text: editMode ? existingColumn!.title : "");
+    // 3. Set initial data for edit mode
+    final initialData = editMode ? {'title': existingColumn.title} : null;
 
-    Get.dialog(
-      AlertDialog(
-        title: Text(editMode ? "Edit Column" : "Add New Column"),
-        backgroundColor: Colors.white,
-        content: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: editMode ? 80 : 120,
-            maxWidth: 200
-          ), 
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(editMode 
-                ? "Edit your title!" 
-                : "Get started by setting the name of the new group, they can hold as many tasks as you need!"
-              ),
-              TextField(
-                controller: columnTitleController,
-                decoration: const InputDecoration(hintText: "Column Title"),
-                autofocus: true,
-              )
-            ]
-          )
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
-              backgroundColor: theme.primaryColor,
-            ),
-            onPressed: () {
-              if (columnTitleController.text.trim().isNotEmpty) {
-                if (editMode) {
-                  existingColumn!.title = columnTitleController.text.trim();
-                  controller.updateColumnToDatabase(existingColumn);
-                } else {
-                  controller.addColumn(columnTitleController.text.trim());
-                }
-                Get.back();
-              } else {
-                Get.snackbar("Error", "Column title cannot be empty.",
-                snackPosition: SnackPosition.BOTTOM);
-              }
-            },
-            child: Text(editMode ? "Finish" : "Add"),
-          )
-        ],
-      ),
+    // 4. Call our reusable General Purpose Widget
+    GPFormDialog.show(
+      context: context,
+      title: dialogTitle,
+      fields: formFields,
+      initialData: initialData,
+      submitButtonText: submitText,
+      // The submission logic is now neatly contained in this callback.
+      onSubmit: (formData) {
+        // The GPFormDialog already validates that the field isn't empty
+        // because we set 'required': true.
+        final String newTitle = (formData['title'] as String?)?.trim() ?? '';
+
+        if (editMode) {
+          controller.addColumn(newTitle, existingColumn.id);
+        } else {
+          controller.addColumn(newTitle);
+        }
+        // Get.back() is handled automatically by GPFormDialog on success.
+      },
     );
   }
-
-  String getOriginId(List<Task?> itemCurrentlyDragged) {
-    try {
-      return controller.getColumnByTask(itemCurrentlyDragged[0]!).id;
-    } catch (e) {
-      return '';
-    }
-  }
-
 
   @override
   Widget build(BuildContext context) {
@@ -160,16 +132,18 @@ class TasksPage extends GetView<TasksController> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: controller.columns.map((column) {
                       return Padding(
                         padding: const EdgeInsets.only(right: 16.0),
-                        
+                        /// Column initiation
                         child: GPColumn<Task>(
                           width: defaultColumnWidth,
                           onAccept: (task) {
                             controller.moveTask(
-                              task,
-                              fromColumn: controller.getColumnByTask(task),
+                              task: task,
+                              fromColumn: controller.getColumnByTask(task)!,
                               toColumn: column,
                             );
                           },
