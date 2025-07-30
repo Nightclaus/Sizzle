@@ -4,6 +4,10 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../routes/app_pages.dart'; // For navigation
+
+import '../helpers/profile_dialogue_helper.dart'; // For navigation
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 //import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -34,11 +38,42 @@ class AuthController extends GetxController {
 
   void _setInitialScreen(User? user) {
     if (user == null) {
+      // User is logged out, go to the login screen.
       if (Get.currentRoute != Routes.LOGIN) Get.offAllNamed(Routes.LOGIN);
     } else {
-      Get.offAllNamed(Routes.TASKS); // Move to the task screen for now
+      // A user is logged in. Check if their profile is complete before navigating.
+      _checkProfileAndNavigate(user);
     }
   }
+
+  // --- NEW METHOD TO HANDLE THE USER SETUP CHECK AND NAVIGATION ---
+  Future<void> _checkProfileAndNavigate(User user) async {
+    const destination = Routes.HOME;
+    try {
+      final profileDocRef = FirebaseFirestore.instance
+          .collection("UserData")
+          .doc(user.uid)
+          .collection("ProfileData")
+          .doc("main");
+
+      final doc = await profileDocRef.get();
+
+      if (doc.exists) {
+        // Profile exists, go to the main app screen.
+        Get.offAllNamed(destination);
+      } else {
+        // Profile does not exist. Show the setup dialog.
+        // Add a small delay to ensure the UI is fully ready after login.
+        await Future.delayed(const Duration(milliseconds: 300));
+        showProfileSetupDialog(() {Get.offAllNamed(destination);});
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Could not verify user profile. Navigating to home.');
+      // Fallback: If the check fails, just send the user to the main screen.
+      Get.offAllNamed(destination);
+    }
+  }
+  // --- END OF NEW METHOD ---
 
   void toggleLoginMode() {
     isLoginMode.value = !isLoginMode.value;
@@ -122,11 +157,3 @@ class AuthController extends GetxController {
     }
   }
 }
-
-    // Baraam code, delete later
-
-    //final _firestore = FirebaseFirestore.instance;
-    //final firestoreRef = _firestore.collection('sdfdsf').doc();
-    //_firestore.collection('sdfdsfds').doc(firestoreRef.id).get
-
-    // baraam code ends
