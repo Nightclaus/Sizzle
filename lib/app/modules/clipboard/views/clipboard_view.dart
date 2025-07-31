@@ -4,6 +4,7 @@ import 'package:dotted_border/dotted_border.dart';
 import '../../../controllers/clipboard_controller.dart';
 import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
 import '../../../models/task_model.dart';
+import '../../../helpers/nav_bar.dart'; // SizzleNavBar()
 
 class ClipboardScreen extends GetView<ClipboardController> {
   const ClipboardScreen({Key? key}) : super(key: key);
@@ -14,6 +15,7 @@ class ClipboardScreen extends GetView<ClipboardController> {
     Get.put(ClipboardController());
 
     return Scaffold(
+      appBar: SizzleNavBar(),
       backgroundColor: const Color(0xFFF5F5F5),
       body: Column(
         children: [

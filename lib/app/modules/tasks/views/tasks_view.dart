@@ -7,7 +7,7 @@ import '../../../controllers/tasks_controller.dart';
 import '../widgets/task_card_widget.dart'; // For Widget Tasks
 import '../../../models/task_model.dart';
 import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
-import '../../../helpers/nav_bar.dart'; 
+import '../../../helpers/nav_bar.dart'; // SizzleNavBar()
 
 class TasksPage extends GetView<TasksController> {
   final AuthController authController = Get.find<AuthController>(); // For logout
