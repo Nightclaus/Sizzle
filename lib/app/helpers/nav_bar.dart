@@ -55,10 +55,10 @@ class SizzleNavBar extends StatelessWidget implements PreferredSizeWidget {
 
           _buildNavButton(
             title: 'Team',
-            route: Routes.TASKS,
+            route: Routes.TEAM,
             theme: theme,
             // Provide a custom onPressed to pass arguments
-            onPressed: () => Get.toNamed(Routes.TASKS, arguments: true),
+            onPressed: () => Get.toNamed(Routes.TEAM, arguments: true),
           ),
 
           // 4. (Example) Farm Button (simple navigation)

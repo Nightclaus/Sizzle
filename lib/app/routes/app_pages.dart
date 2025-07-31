@@ -46,7 +46,7 @@ class AppPages {
       page: () => ClipboardScreen(),
       binding: ClipboardBinding(),
     ),
-    GetPage( // Unused, NavBar uses toNamed to pass argument
+    GetPage( // Used, NavBar uses toNamed to pass argument but this is needed to seperate Tasks from Team
       name: _Paths.TEAM,
       page: () => TasksPage(),
       binding: TasksBinding(),
