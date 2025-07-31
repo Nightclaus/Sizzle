@@ -425,54 +425,57 @@ class WorkspacesController extends GetxController {
   /// Shows a confirmation dialog before proceeding with workspace deletion.
   Future<void> confirmAndDeleteWorkspace(String workspaceId, String workspaceName) async {
     // We use the existing GPPopup system for a consistent look and feel.
-    GPPopup.show(
-      title: "Confirm Deletion",
-      // The content of the popup is a custom widget we build here.
-      content: Column(
-        mainAxisSize: MainAxisSize.min, // Use minimum space
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Inform the user about the consequences of their action.
-          Text.rich(
-            TextSpan(
-              text: "Are you sure you want to permanently delete the '",
+    Get.dialog(
+      AlertDialog(
+        // Set the title using a Text widget for proper styling.
+        title: Text("Confirm Deletion"),
+        // The content of the popup is a custom widget we build here.
+        content: Column(
+          mainAxisSize: MainAxisSize.min, // Use minimum space
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Inform the user about the consequences of their action.
+            Text.rich(
+              TextSpan(
+                text: "Are you sure you want to permanently delete the '",
+                children: [
+                  TextSpan(
+                    text: workspaceName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const TextSpan(
+                    text: "' workspace? This will remove it for all members and cannot be undone.",
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // A row for the action buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end, // Align buttons to the right
               children: [
-                TextSpan(
-                  text: workspaceName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                // The "Cancel" button simply closes the dialog.
+                TextButton(
+                  child: const Text("Cancel"),
+                  onPressed: () => Get.back(), // GetX's way to close a dialog
                 ),
-                const TextSpan(
-                  text: "' workspace? This will remove it for all members and cannot be undone.",
+                const SizedBox(width: 8),
+                // The "Delete" button is styled to indicate a dangerous action.
+                TextButton(
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  child: const Text("Delete"),
+                  onPressed: () {
+                    // First, close the dialog.
+                    Get.back();
+                    // Then, call the actual deletion logic.
+                    _deleteWorkspaceConfirmed(workspaceId);
+                  },
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          // A row for the action buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end, // Align buttons to the right
-            children: [
-              // The "Cancel" button simply closes the dialog.
-              TextButton(
-                child: const Text("Cancel"),
-                onPressed: () => Get.back(), // GetX's way to close a dialog
-              ),
-              const SizedBox(width: 8),
-              // The "Delete" button is styled to indicate a dangerous action.
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text("Delete"),
-                onPressed: () {
-                  // First, close the dialog.
-                  Get.back();
-                  // Then, call the actual deletion logic.
-                  _deleteWorkspaceConfirmed(workspaceId);
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+          ],
+        ),
+      )
     );
   }
 

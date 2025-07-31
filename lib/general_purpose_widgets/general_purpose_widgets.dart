@@ -416,7 +416,6 @@ class GPPopup {
             [
               TextButton(
                 child: const Text('Close'),
-                // 3. Use Get.back() to close the dialog.
                 onPressed: () => Get.back(),
               ),
             ],
