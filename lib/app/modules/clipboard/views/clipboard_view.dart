@@ -176,10 +176,11 @@ class ClipboardScreen extends GetView<ClipboardController> {
 }),
         ),
         footer: 
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: ElevatedButton(onPressed: () {}, child: const Text("Column Action")),
-        ),
+        // Padding(
+        //   padding: const EdgeInsets.all(8.0),
+        //   child: ElevatedButton(onPressed: () {}, child: const Text("Lock Tasks")),
+        // ),
+        SizedBox()
       ),
     ),
   );

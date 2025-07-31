@@ -8,11 +8,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/task_column_model.dart';
 import '../models/task_model.dart';
 import '../models/workspace_model.dart';
-import '../helpers/workspace_service.dart';
+import '../helpers/workspace_service.dart'; // Changed from helpers
 
 class TasksController extends GetxController {
   // --- CORE PROPERTIES ---
-  final bool isWorkspaceMode; // This flag, set at creation, determines all behavior.
+  final bool isWorkspaceMode;
   
   // --- STATE VARIABLES ---
   RxList<TaskColumn> columns = <TaskColumn>[].obs;
@@ -24,28 +24,24 @@ class TasksController extends GetxController {
   final _uuid = const Uuid();
   final _root = FirebaseFirestore.instance;
 
-  late String? workspaceId;
+  // This is no longer needed as the getter is more robust
+  // late String? workspaceId;
 
   // --- CONSTRUCTOR ---
   TasksController({required this.isWorkspaceMode});
 
-  // --- DYNAMIC DATABASE PATH GETTERS ---
-
-  /// Dynamically returns the correct Firestore reference for COLUMNS
-  /// based on the controller's mode. Returns null if prerequisites are not met.
+  // --- DYNAMIC DATABASE PATH GETTERS (Unchanged) ---
   CollectionReference<Map<String, dynamic>>? get columnsDbRef {
     if (isWorkspaceMode) {
-      workspaceId = _workspaceService.selectedWorkspace.value?.id ?? null;
-      if (workspaceId == null) return null; // No workspace selected
+      final workspaceId = _workspaceService.selectedWorkspace.value?.id;
+      if (workspaceId == null) return null;
       return _root.collection('Workspaces').doc(workspaceId).collection('Columns');
     } else {
-      if (userId == null) return null; // No user logged in
+      if (userId == null) return null;
       return _root.collection('UserData').doc(userId).collection('Dashboard');
     }
   }
 
-  /// Dynamically returns the correct Firestore reference for TASKS
-  /// based on the controller's mode. Returns null if prerequisites are not met.
   CollectionReference<Map<String, dynamic>>? get tasksDbRef {
     if (isWorkspaceMode) {
       final workspaceId = _workspaceService.selectedWorkspace.value?.id;
@@ -62,183 +58,172 @@ class TasksController extends GetxController {
     super.onInit();
     
     if (isWorkspaceMode) {
-      // --- WORKSPACE MODE LOGIC ---
-      // This controller instance will react to global workspace changes.
       ever(_workspaceService.selectedWorkspace, (Workspace? workspace) {
-        // When the selected workspace changes, reload the data.
         if (workspace != null) {
           loadData();
         } else {
-          // If workspace is cleared, empty the columns.
           columns.clear();
         }
       });
-
-      // Also load data for the initially selected workspace, if there is one.
       if (_workspaceService.selectedWorkspace.value != null) {
         loadData();
       }
     } else {
-      // --- PERSONAL MODE LOGIC ---
-      // This controller instance will only load the user's personal data once.
       loadData();
     }
   }
 
-  /// Universal data loader that uses the dynamic DB getters.
+  // --- REPLACEMENT: Universal data loader with new Workspace Mode logic ---
   void loadData() async {
-    // Abort if the required database paths are not available.
+    isLoading.value = true;
+    if (isWorkspaceMode) {
+      await _loadDataForWorkspace();
+    } else {
+      await _loadDataForPersonal();
+    }
+    isLoading.value = false;
+  }
+
+  Future<void> _loadDataForWorkspace() async {
+    final workspaceId = _workspaceService.selectedWorkspace.value?.id;
+    if (workspaceId == null) {
+      columns.clear();
+      return;
+    }
+    debugPrint("[LOADER-W] Loading data for Workspace ID: $workspaceId");
+
+    try {
+      final workspaceDoc = await _root.collection('Workspaces').doc(workspaceId).get();
+      if (!workspaceDoc.exists) {
+        columns.clear();
+        Get.snackbar("Error", "Selected workspace not found.");
+        return;
+      }
+      
+      final List<String> memberIds = List<String>.from(workspaceDoc.data()?['members'] ?? []);
+      if (memberIds.isEmpty) {
+        columns.value = [];
+        return;
+      }
+
+      List<TaskColumn> userColumns = [];
+      for (String memberId in memberIds) {
+        final profileDoc = await _root.collection('UserData').doc(memberId).collection('ProfileData').doc('main').get();
+        final columnName = profileDoc.exists ? profileDoc.data()!['name'] ?? memberId : memberId;
+        userColumns.add(TaskColumn(id: memberId, title: columnName));
+      }
+
+      final tasksSnapshot = await _root.collection('Workspaces').doc(workspaceId).collection('Tasks').get();
+      for (var taskDoc in tasksSnapshot.docs) {
+        final task = Task.fromFirestore(taskDoc);
+        final parentUserColumn = userColumns.firstWhereOrNull((col) => col.id == task.parentId);
+        parentUserColumn?.tasks.add(task);
+      }
+
+      columns.value = userColumns;
+      debugPrint("[LOADER-W] Successfully loaded ${columns.length} user columns.");
+
+    } catch (e) {
+      Get.snackbar("Error", "Failed to load workspace data.");
+      debugPrint("[LOADER-W] Firestore Error: $e");
+    }
+  }
+
+  Future<void> _loadDataForPersonal() async {
     if (columnsDbRef == null || tasksDbRef == null) {
       columns.clear();
       return;
     }
-    isLoading.value = true;
-    debugPrint("[LOAD-START] Loading data in ${isWorkspaceMode ? 'Workspace' : 'Personal'} mode...");
-
+    debugPrint("[LOADER-P] Loading personal data...");
+    
     try {
-      // --- Step 1: Fetch all necessary data from Firestore ---
-
-      // Fetch the columns. This is the base structure.
       final columnsSnapshot = await columnsDbRef!.get();
-      
-      // Fetch the primary set of tasks (either personal or workspace tasks).
-      final primaryTasksSnapshot = await tasksDbRef!.get();
-      
-      // In Workspace Mode, we ALSO need to fetch the user's personal tasks.
-      // We use a local variable to hold this data.
-      QuerySnapshot<Map<String, dynamic>>? personalTasksSnapshot;
-      if (isWorkspaceMode && userId != null) {
-        personalTasksSnapshot = await _root
-            .collection('UserData')
-            .doc(userId)
-            .collection('Tasks')
-            .get();
-      }
-
-      // --- Step 2: Assemble the final state in a temporary variable ---
-
-      // Create the column objects. Their task lists are initially empty.
-      final List<TaskColumn> newColumnsState = columnsSnapshot.docs
-          .map((doc) => TaskColumn(id: doc.id, title: doc.data()['name'] ?? 'Untitled Column'))
+      final fetchedColumns = columnsSnapshot.docs
+          .map((doc) => TaskColumn(id: doc.id, title: doc.data()['name'] ?? '...'))
           .toList();
 
-      // Populate columns with the primary tasks.
-      for (var taskDoc in primaryTasksSnapshot.docs) {
+      final tasksSnapshot = await tasksDbRef!.get();
+      for (var taskDoc in tasksSnapshot.docs) {
         final task = Task.fromFirestore(taskDoc);
-        // Find the correct parent column in our new temporary list.
-        final parentColumn = newColumnsState.firstWhereOrNull((col) => col.id == task.parentId);
+        final parentColumn = fetchedColumns.firstWhereOrNull((col) => col.id == task.parentId);
         parentColumn?.tasks.add(task);
       }
-
-      // If we fetched personal tasks (in workspace mode), add them as well.
-      if (personalTasksSnapshot != null) {
-        for (var taskDoc in personalTasksSnapshot.docs) {
-          final task = Task.fromFirestore(taskDoc);
-          final parentColumn = newColumnsState.firstWhereOrNull((col) => col.id == task.parentId);
-          parentColumn?.tasks.add(task);
-        }
-      }
-
-      // --- Step 3: Update the official reactive state ONCE at the end ---
-      
-      columns.value = newColumnsState;
-      debugPrint("[LOAD-SUCCESS] Loaded ${columns.length} columns and their tasks.");
-
+      columns.value = fetchedColumns;
     } catch (e) {
-      Get.snackbar("Error", "Failed to load data from the database.");
-      debugPrint("[LOAD-ERROR] Firestore Error: $e");
-    } finally {
-      isLoading.value = false;
+      Get.snackbar("Error", "Failed to load personal data.");
     }
   }
+  // --- END OF REPLACEMENT ---
     
-  /// Adds a new column to the correct Firestore location.
+  /// Adds a new column. In Workspace Mode, this is disabled as columns are users.
   Future<void> addColumn(String title, [String? uid]) async {
-  if (title.trim().isEmpty || columnsDbRef == null) return;
+    if (isWorkspaceMode) {
+      Get.snackbar("Info", "In Workspace mode, columns represent users and cannot be added manually.");
+      return;
+    }
+    if (title.trim().isEmpty || columnsDbRef == null) return;
 
     final newColumnId = uid ?? _uuid.v4();
     final newColumn = TaskColumn(id: newColumnId, title: title.trim());
     
-    // Add to Firestore
     await columnsDbRef!.doc(newColumnId).set({"name": newColumn.title});
-    // Add to local state for immediate UI update
-    columns.removeWhere((column) => column.id == uid); // Attempts to clear
+    // This logic is for editing, it's better to have a separate update method.
+    columns.removeWhere((column) => column.id == uid);
     columns.add(newColumn);
   }
 
+  /// Deletes a column. In Workspace Mode, this might mean "remove user from workspace".
   Future<void> deleteColumn(String columnId) async {
-  // Use the dynamic getters. If they are null, something is wrong, so we abort.
-  if (columnsDbRef == null || tasksDbRef == null) return;
-  
-  debugPrint("DELETING COLUMN: $columnId");
-  final batch = _root.batch();
+    if (isWorkspaceMode) {
+      Get.snackbar("Info", "To delete this column, remove the user from the workspace settings.");
+      return;
+    }
+    if (columnsDbRef == null || tasksDbRef == null) return;
+    
+    debugPrint("DELETING PERSONAL COLUMN: $columnId");
+    final batch = _root.batch();
+    final columnRef = columnsDbRef!.doc(columnId);
+    batch.delete(columnRef);
 
-  // 1. Mark the column document for deletion.
-  final columnRef = columnsDbRef!.doc(columnId);
-  batch.delete(columnRef);
-
-  // 2. Find all tasks that belong to this column using the correct path.
-  //    The 'tasksDbRef' getter automatically points to either the user's or the workspace's tasks.
-  final tasksQuery = await tasksDbRef!
-      .where('parentId', isEqualTo: columnId)
-      .get();
-      
-  // 3. Mark each of those tasks for deletion.
-  for (var doc in tasksQuery.docs) {
-    batch.delete(doc.reference);
+    final tasksQuery = await tasksDbRef!.where('parentId', isEqualTo: columnId).get();
+    for (var doc in tasksQuery.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+    columns.removeWhere((col) => col.id == columnId);
   }
 
-  // 4. Commit all deletion operations in a single atomic transaction.
-  await batch.commit();
-
-  // 5. Update the local UI state *after* the database operation succeeds.
-  columns.removeWhere((col) => col.id == columnId);
-}
-
-  /// Adds a new task to the correct Firestore location.
+  /// Adds a new task to a column.
   Future<void> addTask(String columnId, Task task) async {
     if (tasksDbRef == null) return;
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex == -1) return;
     
-    // Add to Firestore
     await tasksDbRef!.doc(task.id).set({
       "name": task.name,
       "description": task.description,
       "task_tag": task.tag.asString,
       "task_importance": task.importance.asString,
       "parentId": columnId,
-      // You might want to add a createdAt timestamp here as well
       "createdAt": FieldValue.serverTimestamp(),
     });
 
-    void recursivelyRemove(List<Task> taskList) {
-      for (int i = taskList.length - 1; i >= 0; i--) {
-        if (taskList[i].id == task.id) {
-          taskList.removeAt(i);
-        }
-      }
-    }
-
-    recursivelyRemove(columns[columnIndex].tasks);
-    // Add to local state
+    columns[columnIndex].tasks.removeWhere((t) => t.id == task.id);
     columns[columnIndex].tasks.add(task);
   }
 
-  /// Deletes a task from the correct Firestore location.
+  /// Deletes a task from a column. (Unchanged)
   void deleteTask(String columnId, String taskId) async {
     if (tasksDbRef == null) return;
     
-    // Delete from Firestore
     await tasksDbRef!.doc(taskId).delete();
-    // Delete from local state
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex != -1) {
       columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
     }
   }
 
-  /// Moves a task from one column to another in the correct Firestore location.
+  /// Moves a task from one column to another.
   Future<void> moveTask({
     required Task task,
     required TaskColumn fromColumn,
@@ -246,32 +231,39 @@ class TasksController extends GetxController {
   }) async {
     if (tasksDbRef == null) return;
 
-    // Update local state for instant UI feedback
     fromColumn.tasks.removeWhere((t) => t.id == task.id);
+    // The toColumn.id is the new parentId (either a column ID or a user ID)
     task.parentId = toColumn.id;
     toColumn.tasks.add(task);
 
-    // Update the parentId field in Firestore
     await tasksDbRef!.doc(task.id).update({"parentId": toColumn.id});
   }
   
-  /// Reorders a task within the same column (local state only).
+  /// Reorders a task within the same column. (Unchanged)
   void reorderTaskInColumn(String columnId, int oldIndex, int newIndex) {
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex != -1) {
       final task = columns[columnIndex].tasks.removeAt(oldIndex);
       if (oldIndex < newIndex) newIndex -= 1;
       columns[columnIndex].tasks.insert(newIndex, task);
-      // Note: No DB update is needed unless you need to persist order.
     }
   }
 
-  /// Helper to find which column a specific task belongs to.
+  /// Helper to find which column a specific task belongs to. (Unchanged)
   TaskColumn? getColumnByTask(Task task) {
     try {
         return columns.firstWhere((col) => col.tasks.any((t) => t.id == task.id));
     } catch(e) {
         return null;
     }
+  }
+
+  // --- NEW PUBLIC METHOD ---
+  /// Returns a list of all tasks from the currently loaded columns that are
+  /// assigned to a specific user ID. Only relevant in Workspace Mode.
+  List<Task> getTasksForUser(String userId) {
+    if (!isWorkspaceMode) return [];
+    final userColumn = columns.firstWhereOrNull((col) => col.id == userId);
+    return userColumn?.tasks.toList() ?? [];
   }
 }
