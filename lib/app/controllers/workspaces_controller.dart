@@ -62,10 +62,10 @@ class WorkspacesController extends GetxController {
       // --- END OF MODIFICATION ---
 
       // This part is unchanged: add the workspace ID to the user's personal list.
-      final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc('list');
+      final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc(newWorkspaceRef.id);
       await userWorkspacesRef.set({
-        'ids': FieldValue.arrayUnion([newWorkspaceRef.id])
-      }, SetOptions(merge: true));
+        'JoinCode': joinCode,
+      });
 
       await fetchJoinedWorkspaces(); // Refresh the list
       
@@ -173,7 +173,7 @@ class WorkspacesController extends GetxController {
       });
       // --- END OF MODIFICATION ---
 
-      final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc('workspaceId');
+      final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc(workspaceId);
       await userWorkspacesRef.set({
         'JoinCode': joinCode,
       });

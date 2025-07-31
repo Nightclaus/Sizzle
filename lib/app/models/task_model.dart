@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum TaskTag { passion, work }                // Set categories
 enum TaskImportance { high, medium, low }     // Set categories
@@ -59,7 +60,7 @@ class Task {
   TaskTag tag;
   TaskImportance importance;
   DateTime createdAt;
-  // String columnId; // To associate with a column if storing separately
+  final String? sourceWorkspaceName; // To know where the task came from
 
   Task({
     required this.id,
@@ -68,31 +69,24 @@ class Task {
     required this.tag,
     required this.importance,
     required this.parentId,
-    // required this.columnId,
+    this.sourceWorkspaceName,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  /////////////////////////////////////////
-  String get task_tag { // Legacy
-    switch (tag) {
-      case TaskTag.passion:
-        return "passion";
-      case TaskTag.work:
-        return "work";
-    }
-  } // Legacy
-
-  String get task_importance { // Legacy
-    switch (importance) {
-      case TaskImportance.high:
-        return "high";
-      case TaskImportance.medium:
-        return "medium";
-      case TaskImportance.low:
-        return "low";
-    }
-  } // Legacy
-  /////////////////////////////////////////
+  // A factory to create a Task from a Firestore document
+  factory Task.fromFirestore(DocumentSnapshot doc, {String? workspaceName}) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Task(
+      id: doc.id,
+      name: data['name'] ?? 'Untitled Task',
+      description: data['description'] ?? '',
+      createdAt: (data['createdAt'] as Timestamp? ?? Timestamp.now()).toDate(),
+      parentId: 'FACTORY',
+      tag: getTaskTag(data['task_tag'])!,
+      importance: getTaskImportance(data['task_importance'])!,
+      sourceWorkspaceName: workspaceName,
+    );
+  }
 
   // Helper to get color for importance
   Color get importanceColor {
@@ -120,3 +114,4 @@ class Task {
     }
   }
 }
+
