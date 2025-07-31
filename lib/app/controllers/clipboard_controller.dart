@@ -9,90 +9,76 @@ class ClipboardController extends GetxController {
 
   // --- STATE VARIABLES ---
   var isLoading = true.obs;
-  RxList<Task> allTasks = <Task>[].obs; // Holds "uncategorized" tasks for the main grid
-  var columnTasks = <String, RxList<Task>>{}.obs; // Holds categorised tasks for each tab
+  RxList<Task> allTasks = <Task>[].obs;
+  var columnTasks = <String, RxList<Task>>{}.obs;
   var openTabs = <String>[].obs;
   var selectedTabIndex = 0.obs;
 
-  // Helper to get the current user's database path
-  DocumentReference<Map<String, dynamic>>? get _userDbRef => 
-      _auth.currentUser?.uid != null ? _firestore.collection("UserData").doc(_auth.currentUser!.uid) : null;
-
-  // --- LOCAL AUTH STATE ---
-  // Create a local Rx variable to hold the user state for this controller.
   final Rx<User?> _firebaseUser = Rx<User?>(null);
+
+  DocumentReference<Map<String, dynamic>>? get _userDbRef =>
+      _firebaseUser.value?.uid != null
+          ? _firestore.collection("UserData").doc(_firebaseUser.value!.uid)
+          : null;
 
   @override
   void onInit() {
     super.onInit();
-    // We bind the fetchAllData method to the auth state.
-    // This will automatically run when the user logs in.
     _firebaseUser.bindStream(_auth.authStateChanges());
-
-    // 2. Use 'ever' to listen to OUR Rx variable, not the raw stream.
-    //    This worker will now fire whenever _firebaseUser changes.
     ever(_firebaseUser, (User? user) {
       if (user == null) {
-        // If the user logs out, clear all the data to prevent showing
-        // the previous user's data.
+        // Clear all data on logout
         isLoading.value = false;
         allTasks.clear();
         columnTasks.clear();
         openTabs.clear();
       } else {
-        // If a user logs in (or is already logged in), fetch their data.
         fetchAllData();
       }
-    });   
+    });
   }
-  
+
   /// Main data loading function. Fetches everything needed for the screen.
   Future<void> fetchAllData() async {
-    if (_userDbRef == null) return; // Don't run if user is not logged in
+    final userId = _firebaseUser.value?.uid;
+    if (userId == null) return;
     isLoading.value = true;
     
     try {
-      // 1. Fetch ALL personal tasks first into a master list.
-      final tasksSnapshot = await _userDbRef!.collection("Tasks").get();
-      final masterTaskList = tasksSnapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
+      // 1. Fetch ALL personal tasks into a master list.
+      final personalTasksSnapshot = await _userDbRef!.collection("Tasks").get();
+      final masterTaskList = personalTasksSnapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
 
-      // 2. Fetch all "Checkbox" documents, which define our tabs and their contents.
+      // 2. Fetch all "Checkbox" documents to categorize the personal tasks.
       final checkboxesSnapshot = await _userDbRef!.collection("Checkboxes").get();
-      
       final Set<String> categorizedTaskIds = {};
       final List<String> fetchedTabs = [];
-
-      // Clear previous state
       columnTasks.clear();
 
       for (var doc in checkboxesSnapshot.docs) {
         final tabName = doc.id;
         fetchedTabs.add(tabName);
-
         final taskIdsInColumn = List<String>.from(doc.data()['taskIds'] ?? []);
-        
-        // Find the full Task objects from the master list that belong in this column
         final tasksForThisColumn = masterTaskList.where((task) => taskIdsInColumn.contains(task.id)).toList();
         columnTasks[tabName] = tasksForThisColumn.obs;
-        
-        // Keep track of which tasks have been categorized
         categorizedTaskIds.addAll(taskIdsInColumn);
       }
       
-      // If no tabs were found, initialize the default 'Tasks' tab
       if (fetchedTabs.isEmpty) {
         fetchedTabs.add('Tasks');
         columnTasks['Tasks'] = <Task>[].obs;
       }
-      
       openTabs.value = fetchedTabs;
 
-      // 3. The "main grid" tasks are any tasks NOT in a category.
-      allTasks.value = masterTaskList.where((task) => !categorizedTaskIds.contains(task.id)).toList();
+      // 3. The "main grid" tasks are any PERSONAL tasks NOT in a category.
+      final uncategorizedPersonalTasks = masterTaskList.where((task) => !categorizedTaskIds.contains(task.id)).toList();
 
-      ///// IN PRODUCTION this will be used to fetch assigned tasks from the workspace, but that has not been set up yet ////
-      //final assigned = await _fetchAssignedTasks();
-      //allTasks.addAll(assigned);
+      // 4. Fetch all tasks assigned to the user from ALL their workspaces.
+      final assignedWorkspaceTasks = await _fetchAssignedTasks(userId);
+      
+      // 5. Combine everything for the main grid.
+      allTasks.value = [...uncategorizedPersonalTasks, ...assignedWorkspaceTasks];
+
     } catch (e) {
       Get.snackbar("Error", "Could not load clipboard data: $e");
     } finally {
@@ -100,6 +86,69 @@ class ClipboardController extends GetxController {
     }
   }
 
+  // --- THIS IS THE NEW, REFACTORED METHOD ---
+  /// Fetches all tasks from all joined workspaces where the task's parentId
+  /// matches the current user's ID.
+  Future<List<Task>> _fetchAssignedTasks(String userId) async {
+    print("[CLIPBOARD] Fetching assigned tasks for user $userId...");
+    final List<Task> assignedTasks = [];
+
+    try {
+      // 1. Get the list of workspace references from the user's data.
+      // This assumes a schema of /UserData/{userId}/JoinedWorkspaces/{workspaceId}
+      final joinedWorkspacesSnapshot = await _firestore
+          .collection('UserData')
+          .doc(userId)
+          .collection('JoinedWorkspaces')
+          .get();
+          
+      if (joinedWorkspacesSnapshot.docs.isEmpty) {
+        print("[CLIPBOARD] User has not joined any workspaces.");
+        return []; // Return early if the user has no workspaces.
+      }
+
+      // Extract the workspace IDs from the document IDs.
+      final List<String> workspaceIds = joinedWorkspacesSnapshot.docs.map((doc) => doc.id).toList();
+
+      // 2. Create a list of futures to query all workspaces in parallel for efficiency.
+      List<Future<QuerySnapshot<Map<String, dynamic>>>> taskQueries = [];
+      for (final workspaceId in workspaceIds) {
+        final query = _firestore
+            .collection('Workspaces')
+            .doc(workspaceId)
+            .collection('Tasks')
+            .where('parentId', isEqualTo: userId) // The core logic!
+            .get();
+        taskQueries.add(query);
+      }
+
+      // 3. Wait for all the network requests to complete.
+      final List<QuerySnapshot<Map<String, dynamic>>> results = await Future.wait(taskQueries);
+
+      // 4. Process the results and build the final Task list.
+      // We also fetch the workspace name for better UI context.
+      for (int i = 0; i < results.length; i++) {
+        final snapshot = results[i];
+        if (snapshot.docs.isNotEmpty) {
+          // Get the workspace name for context.
+          final workspaceId = workspaceIds[i];
+          final workspaceDoc = await _firestore.collection('Workspaces').doc(workspaceId).get();
+          final workspaceName = workspaceDoc.data()?['name'] ?? 'Workspace';
+
+          for (final doc in snapshot.docs) {
+            assignedTasks.add(Task.fromFirestore(doc, workspaceName: workspaceName));
+          }
+        }
+      }
+      
+      print("[CLIPBOARD] Found ${assignedTasks.length} assigned tasks across ${workspaceIds.length} workspaces.");
+      return assignedTasks;
+    } catch (e) {
+      print("[CLIPBOARD] Error fetching assigned tasks: $e");
+      return []; // Always return an empty list on error to prevent crashes.
+    }
+  }
+  // --- END OF THE REFACTORED METHOD ---
   /// Handles moving a task FROM the main grid INTO a side column.
   Future<void> handleTaskDropOnColumn(Task task, String columnName) async {
     if (_userDbRef == null) return;
