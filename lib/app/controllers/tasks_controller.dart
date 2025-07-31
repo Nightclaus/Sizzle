@@ -8,7 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/task_column_model.dart';
 import '../models/task_model.dart';
 import '../models/workspace_model.dart';
-import '../helpers/workspace_service.dart'; // Changed from helpers
+import '../helpers/workspace_service.dart'; 
+import '../helpers/logging_service.dart'; 
 
 class TasksController extends GetxController {
   // --- CORE PROPERTIES ---
@@ -25,7 +26,7 @@ class TasksController extends GetxController {
   final _root = FirebaseFirestore.instance;
 
   // This is no longer needed as the getter is more robust
-  // late String? workspaceId;
+  late String? workspaceId;
 
   // --- CONSTRUCTOR ---
   TasksController({required this.isWorkspaceMode});
@@ -33,7 +34,7 @@ class TasksController extends GetxController {
   // --- DYNAMIC DATABASE PATH GETTERS (Unchanged) ---
   CollectionReference<Map<String, dynamic>>? get columnsDbRef {
     if (isWorkspaceMode) {
-      final workspaceId = _workspaceService.selectedWorkspace.value?.id;
+      workspaceId = _workspaceService.selectedWorkspace.value?.id;
       if (workspaceId == null) return null;
       return _root.collection('Workspaces').doc(workspaceId).collection('Columns');
     } else {
@@ -44,7 +45,7 @@ class TasksController extends GetxController {
 
   CollectionReference<Map<String, dynamic>>? get tasksDbRef {
     if (isWorkspaceMode) {
-      final workspaceId = _workspaceService.selectedWorkspace.value?.id;
+      workspaceId = _workspaceService.selectedWorkspace.value?.id;
       if (workspaceId == null) return null;
       return _root.collection('Workspaces').doc(workspaceId).collection('Tasks');
     } else {
@@ -170,6 +171,16 @@ class TasksController extends GetxController {
     // This logic is for editing, it's better to have a separate update method.
     columns.removeWhere((column) => column.id == uid);
     columns.add(newColumn);
+
+    // --- ADD LOGGING (only if in a workspace) ---
+    if (isWorkspaceMode && workspaceId != null && userId != null) {
+      LoggingService.logAction(
+        workspaceId: workspaceId!,
+        userId: userId!,
+        actionMessage: "added column '$title'",
+      );
+    }
+    // --- END LOGGING ---
   }
 
   /// Deletes a column. In Workspace Mode, this might mean "remove user from workspace".
@@ -190,7 +201,20 @@ class TasksController extends GetxController {
       batch.delete(doc.reference);
     }
     await batch.commit();
-    columns.removeWhere((col) => col.id == columnId);
+
+    final columnToDelete = columns.firstWhereOrNull((c) => c.id == columnId);
+
+    columns.remove(columnToDelete);
+
+    // --- ADD LOGGING (only if in a workspace) ---
+    if (isWorkspaceMode && workspaceId != null && userId != null && columnToDelete != null) {
+      LoggingService.logAction(
+        workspaceId: workspaceId!,
+        userId: userId!,
+        actionMessage: "deleted column '${columnToDelete.title}'",
+      );
+    }
+    // --- END LOGGING ---
   }
 
   /// Adds a new task to a column.
@@ -210,17 +234,39 @@ class TasksController extends GetxController {
 
     columns[columnIndex].tasks.removeWhere((t) => t.id == task.id);
     columns[columnIndex].tasks.add(task);
+
+    // --- ADD LOGGING (only if in a workspace) ---
+    if (isWorkspaceMode && workspaceId != null && userId != null) {
+      LoggingService.logAction(
+        workspaceId: workspaceId!,
+        userId: userId!,
+        actionMessage: "created task '${task.name}'",
+      );
+    }
+    // --- END LOGGING ---
   }
 
   /// Deletes a task from a column. (Unchanged)
   void deleteTask(String columnId, String taskId) async {
     if (tasksDbRef == null) return;
+
+    final taskToDelete = columns.firstWhereOrNull((c) => c.id == columnId)?.tasks.firstWhereOrNull((t) => t.id == taskId);
     
-    await tasksDbRef!.doc(taskId).delete();
+    await tasksDbRef!.doc(taskId).delete(); // Remove repeat
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex != -1) {
       columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
     }
+
+    // --- ADD LOGGING (only if in a workspace) ---
+    if (isWorkspaceMode && workspaceId != null && userId != null && taskToDelete != null) {
+      LoggingService.logAction(
+        workspaceId: workspaceId!,
+        userId: userId!,
+        actionMessage: "deleted task '${taskToDelete.name}'",
+      );
+    }
+    // --- END LOGGING ---
   }
 
   /// Moves a task from one column to another.

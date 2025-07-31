@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import '../../general_purpose_widgets/general_purpose_widgets.dart';
 
 import '../helpers/workspace_service.dart';
+import '../helpers/logging_service.dart';
+
 import '../routes/app_pages.dart';
 import 'dart:math';
 
@@ -67,7 +69,6 @@ class WorkspacesController extends GetxController {
       final newWorkspaceRef = _firestore.collection('Workspaces').doc();
       final joinCode = _generateJoinCode();
       
-      // --- MODIFICATION #1 ---
       // We add the 'members' field during workspace creation.
       await newWorkspaceRef.set({
         'name': name,
@@ -77,9 +78,15 @@ class WorkspacesController extends GetxController {
         // The creator is automatically the first member.
         'members': [userId],
       });
-      // --- END OF MODIFICATION ---
 
-      // This part is unchanged: add the workspace ID to the user's personal list.
+      // --- ADD LOGGING ---
+      LoggingService.logAction(
+        workspaceId: newWorkspaceRef.id,
+        userId: userId,
+        actionMessage: "created workspace '$name'",
+      );
+      // --- END LOGGING ---
+
       final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc(newWorkspaceRef.id);
       await userWorkspacesRef.set({
         'JoinCode': joinCode,
@@ -175,7 +182,6 @@ class WorkspacesController extends GetxController {
       final workspaceDoc = query.docs.first;
       final workspaceId = workspaceDoc.id;
 
-      // --- MODIFICATION #2 ---
       // Get a reference to the specific workspace document.
       final workspaceRef = _firestore.collection('Workspaces').doc(workspaceId);
 
@@ -184,7 +190,14 @@ class WorkspacesController extends GetxController {
       await workspaceRef.update({
         'members': FieldValue.arrayUnion([userId]),
       });
-      // --- END OF MODIFICATION ---
+      
+      // --- ADD LOGGING ---
+      LoggingService.logAction(
+        workspaceId: workspaceId,
+        userId: userId,
+        actionMessage: "joined workspace '${workspaceDoc['name']}'",
+      );
+      // --- END LOGGING ---
 
       final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc(workspaceId);
       await userWorkspacesRef.set({
