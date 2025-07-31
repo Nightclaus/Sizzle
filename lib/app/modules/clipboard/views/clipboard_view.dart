@@ -145,21 +145,21 @@ class ClipboardScreen extends GetView<ClipboardController> {
       return Draggable<Task>(
         data: task,
         feedback: Material(
-                        color: Colors.transparent,
-                        child: SizedBox(
-                          width: 200, height: 200,
-                          child: GPSelectableCard(
-                            title: task.name,
-                            description: task.description,
-                            tagText: task.sourceWorkspaceName ?? task.tag.asString,
-                            tagColor: task.tagColor,
-                            importanceText: task.importance.asString,
-                            importanceColor: task.importanceColor,
-                            date: task.createdAt,
-                            expandedChild: Text("Details about ${task.name}"),
-                          ),
-                        ),
-                      ),
+          color: Colors.transparent,
+          child: SizedBox(
+            width: 200, height: 200,
+            child: GPSelectableCard(
+              title: task.name,
+              description: task.description,
+              tagText: task.sourceWorkspaceName ?? task.tag.asString,
+              tagColor: task.tagColor,
+              importanceText: task.importance.asString,
+              importanceColor: task.importanceColor,
+              date: task.createdAt,
+              expandedChild: Text("Details about ${task.name}"),
+            ),
+          ),
+        ),
         child: GPSelectableCard(
           title: task.name,
           description: task.description,
