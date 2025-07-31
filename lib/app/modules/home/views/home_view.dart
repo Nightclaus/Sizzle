@@ -13,9 +13,6 @@ class HomeScreen extends GetView<WorkspacesController> {
 
   @override
   Widget build(BuildContext context) {
-    // controller is lazy loaded via bindings, but it is here aswell
-    Get.put(WorkspacesController());
-
     return Scaffold(
       appBar: SizzleNavBar(),
       body: Row(
@@ -152,14 +149,11 @@ class HomeScreen extends GetView<WorkspacesController> {
       ),
     );
   }
+   Widget _buildWorkspaceCard(Workspace workspace) {
+    final bool isOwner = workspace.ownerId == controller.currentUserId;
 
-  Widget _buildWorkspaceCard(Workspace workspace) {
     return GestureDetector(
-      onTap: () {
-        /// Do something Placeholder
-        controller.onWorkspaceSelected(workspace);
-        // Other choice is: Get.toNamed(Routes.TASKS, arguments: workspace.id); But global variable is more accessible
-      },
+      onTap: () => controller.onWorkspaceSelected(workspace),
       child: SizedBox(
         width: 150,
         height: 150,
@@ -169,6 +163,34 @@ class HomeScreen extends GetView<WorkspacesController> {
               decoration: BoxDecoration(
                 color: Colors.lightBlue[200],
                 borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            Align(
+              alignment: Alignment.topRight, // Positioned better
+              child: PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.white),
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    controller.showEditWorkspaceNameDialog(workspace);
+                  } else if (value == 'delete') {
+                    controller.confirmAndDeleteWorkspace(workspace.id, workspace.name);
+                  } else if (value == 'leave') {
+                    controller.confirmAndLeaveWorkspace(workspace.id, workspace.name);
+                  }
+                },
+                itemBuilder: (context) {
+                  // Dynamically build the menu based on ownership
+                  if (isOwner) {
+                    return const [
+                      PopupMenuItem(value: 'edit', child: Text('Edit Name')),
+                      PopupMenuItem(value: 'delete', child: Text('Delete Workspace')),
+                    ];
+                  } else {
+                    return const [
+                      PopupMenuItem(value: 'leave', child: Text('Leave Workspace')),
+                    ];
+                  }
+                },
               ),
             ),
             Align(
@@ -198,7 +220,6 @@ class HomeScreen extends GetView<WorkspacesController> {
       ),
     );
   }
-
   Widget _buildAddNewCard() {
     return GestureDetector(
       onTap: showAddWorkspaceDialog,
