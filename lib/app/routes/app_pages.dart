@@ -9,6 +9,8 @@ import '../modules/test/bindings/test_binding.dart';
 import '../modules/test/views/test_screen.dart';
 import '../modules/home/bindings/home_binding.dart';
 import '../modules/home/views/home_view.dart';
+import '../modules/clipboard/bindings/clipboard_binding.dart';
+import '../modules/clipboard/views/clipboard_view.dart';
 import '../modules/splash_screen.dart';
 
 part 'app_routes.dart'; // Connected
@@ -38,6 +40,11 @@ class AppPages {
       name: _Paths.TASKS,
       page: () => TasksPage(),
       binding: TasksBinding(),
+    ),
+    GetPage(
+      name: _Paths.CLIPBOARD,
+      page: () => ClipboardScreen(),
+      binding: ClipboardBinding(),
     ),
     GetPage(
       name: _Paths.SPLASH,
