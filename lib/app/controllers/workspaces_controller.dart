@@ -407,6 +407,21 @@ class WorkspacesController extends GetxController {
       // Step 4: Delete the main workspace document
       batch.delete(workspaceRef);
 
+      // Step 4.1: Delete subcollections
+      // Delete tasks
+      final tasksRef = workspaceRef.collection('Tasks');
+      final tasksSnapshot = await tasksRef.get();
+      for (final doc in tasksSnapshot.docs) {
+        await doc.reference.delete();
+      }
+
+      // Delete Columns
+      final columnsRef = workspaceRef.collection('Columns');
+      final columnsSnapshot = await columnsRef.get();
+      for (final doc in columnsSnapshot.docs) {
+        await doc.reference.delete();
+      }
+
       // Step 5: Commit all operations in the batch at once
       await batch.commit();
 
