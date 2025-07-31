@@ -11,7 +11,6 @@ class ClipboardScreen extends GetView<ClipboardController> {
 
   @override
   Widget build(BuildContext context) {
-    // Put the controller into memory
     Get.put(ClipboardController());
 
     return Scaffold(
@@ -22,9 +21,10 @@ class ClipboardScreen extends GetView<ClipboardController> {
           _buildTopTabBar(),
           Expanded(
             child: Row(
+              // The main layout Row
               children: [
                 _buildSidePanel(),
-                _buildMainContent(),
+                _buildMainContent(), // This will now correctly expand
               ],
             ),
           ),
@@ -34,23 +34,32 @@ class ClipboardScreen extends GetView<ClipboardController> {
   }
 
   Widget _buildTopTabBar() {
-    return Container(
-      height: 40,
-      color: const Color(0xFF424242),
-      child: Row(
-        children: [
-          Expanded(
-            child: Obx(
-              () => ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: controller.openTabs.length,
-                itemBuilder: (context, index) {
+  return Container(
+    height: 40,
+    color: const Color(0xFF424242),
+    child: Row(
+      children: [
+        Expanded(
+          // The ListView.builder itself is no longer wrapped in Obx.
+          // We will observe the length directly.
+          child: Obx(() => ListView.builder(
+              scrollDirection: Axis.horizontal,
+              // We observe the length here to rebuild the list if tabs are added/removed.
+              itemCount: controller.openTabs.length, 
+              itemBuilder: (context, index) {
+                // --- THE KEY CHANGE IS HERE ---
+                // We wrap the individual tab UI in its own Obx.
+                // This makes each tab independently reactive to state changes.
+                return Obx(() {
                   final tabName = controller.openTabs[index];
+                  // This calculation now happens inside a dedicated reactive scope.
                   final isSelected = controller.selectedTabIndex.value == index;
+
                   return GestureDetector(
                     onTap: () => controller.selectTab(index),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
+                      // The color is now guaranteed to update.
                       color: isSelected ? const Color(0xFFF5F5F5) : Colors.transparent,
                       child: Row(
                         children: [
@@ -61,82 +70,136 @@ class ClipboardScreen extends GetView<ClipboardController> {
                           const SizedBox(width: 8),
                           InkWell(
                             onTap: () => controller.closeTab(index),
-                            child: Icon(Icons.close, size: 16, color: isSelected ? Colors.black : Colors.white),
+                            child: Icon(
+                              Icons.close,
+                              size: 16,
+                              color: isSelected ? Colors.black : Colors.white,
+                            ),
                           )
                         ],
                       ),
                     ),
                   );
-                },
-              ),
+                });
+              },
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            onPressed: () => controller.addTab(),
-            tooltip: "Add New Tab",
-          ),
-        ],
-      ),
-    );
-  }
-
+        ),
+        IconButton(
+          icon: const Icon(Icons.add, color: Colors.white),
+          onPressed: () => controller.addTab(),
+          tooltip: "Add New Tab",
+        ),
+      ],
+    ),
+  );
+}
+  // --- CORRECTED SIDE PANEL ---
   Widget _buildSidePanel() {
     return Obx(() {
-      // If no tab is selected, show an empty container
       if (controller.selectedTabIndex.value < 0 || controller.openTabs.isEmpty) {
         return const SizedBox.shrink();
       }
       final tabName = controller.openTabs[controller.selectedTabIndex.value];
       
-      // Animate the appearance of the side panel
       return AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: 250,
-        color: const Color(0xFF424242),
-        padding: const EdgeInsets.all(8),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFE0E0E0),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          // Using your GPColumn as the content
-          child: GPColumn<Task>(
-            onAccept: (task) {
-              Get.snackbar("Action", "Task '${task.name}' dropped on column '${tabName}'");
-            },
-            header: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(tabName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
-                  const Icon(Icons.menu),
-                ],
-              ),
-            ),
-            body: Center(child: Text("Content for $tabName")),
-            footer: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(onPressed: () {}, child: const Text("Column Action")),
-            ),
+    duration: const Duration(milliseconds: 300),
+    width: 250,
+    height: double.infinity,
+    color: const Color(0xFF424242),
+    padding: const EdgeInsets.all(8),
+    child: Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0E0E0),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      // Using your GPColumn as the content
+      child: GPColumn<Task>(
+        onAccept: (task) {
+          return controller.handleTaskDropOnColumn(task, tabName);
+        },
+        header: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(tabName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
+              const Icon(Icons.menu),
+            ],
           ),
         ),
+        body: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(Get.context!).size.height - 250),
+          child: Obx(() {
+  // Get the list of tasks for the currently selected tab
+  final tasksInColumn = controller.columnTasks[tabName] ?? <Task>[].obs;
+  if (tasksInColumn.isEmpty) {
+    return Center(child: Text("Drop tasks here"));
+  }
+  // Build a list of the tasks in the column
+  return ListView.builder(
+    itemCount: tasksInColumn.length,
+    itemBuilder: (context, index) {
+      final task = tasksInColumn[index];
+      // Each card in the column must also be Draggable
+      return Draggable<Task>(
+        data: task,
+        feedback: Material(
+                        color: Colors.transparent,
+                        child: SizedBox(
+                          width: 200, height: 200,
+                          child: GPSelectableCard(
+                            title: task.name,
+                            description: task.description,
+                            tagText: task.sourceWorkspaceName ?? task.tag.asString,
+                            tagColor: task.tagColor,
+                            importanceText: task.importance.asString,
+                            importanceColor: task.importanceColor,
+                            date: task.createdAt,
+                            expandedChild: Text("Details about ${task.name}"),
+                          ),
+                        ),
+                      ),
+        child: GPSelectableCard(
+          title: task.name,
+          description: task.description,
+          tagText: task.sourceWorkspaceName ?? task.tag.asString,
+          tagColor: task.tagColor,
+          importanceText: task.importance.asString,
+          importanceColor: task.importanceColor,
+          date: task.createdAt,
+          expandedChild: Text("Details about ${task.name}"),
+        ),
       );
-    });
+    },
+  );
+}),
+        ),
+        footer: 
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: ElevatedButton(onPressed: () {}, child: const Text("Column Action")),
+        ),
+      ),
+    ),
+  );
+});
   }
 
+  // --- CORRECTED MAIN CONTENT ---
   Widget _buildMainContent() {
+    // FIX: Expanded must be a direct child of Row. We move it up.
     return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("My Tasks", style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold)),
-            const Divider(color: Colors.black, thickness: 3),
-            const SizedBox(height: 24),
-            Expanded(
+      child: DragTarget<Task>(
+        onAccept: (task) => controller.handleTaskDropOnGrid(task),
+        builder: (context, candidateData, rejectedData) {
+          final isHovering = candidateData.isNotEmpty;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            color: isHovering ? Colors.lightBlue.withOpacity(0.05) : Colors.transparent,
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              // The child is now the Obx directly, not another Expanded.
               child: Obx(() {
                 if (controller.isLoading.value) {
                   return const Center(child: CircularProgressIndicator());
@@ -144,7 +207,6 @@ class ClipboardScreen extends GetView<ClipboardController> {
                 if (controller.allTasks.isEmpty) {
                   return const Center(child: Text("No tasks found."));
                 }
-                // GridView to display all tasks
                 return GridView.builder(
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 200,
@@ -152,36 +214,69 @@ class ClipboardScreen extends GetView<ClipboardController> {
                     crossAxisSpacing: 20,
                     mainAxisSpacing: 20,
                   ),
-                  itemCount: controller.allTasks.length + 1, // +1 for the add button
+                  itemCount: controller.allTasks.length + 1,
                   itemBuilder: (context, index) {
                     if (index == controller.allTasks.length) {
                       return _buildAddNewCard();
                     }
                     final task = controller.allTasks[index];
-                    return GPSelectableCard(
-                      title: task.name,
-                      description: task.description,
-                      tagText: task.sourceWorkspaceName ?? task.tag.asString,
-                      tagColor: task.tagColor,
-                      importanceText: task.importance.asString,
-                      importanceColor: task.importanceColor,
-                      date: task.createdAt,
-                      expandedChild: Text("Details about ${task.name}"),
+                    // The Draggable implementation here is correct.
+                    return Draggable<Task>(
+                      data: task,
+                      feedback: Material(
+                        color: Colors.transparent,
+                        child: SizedBox(
+                          width: 200, height: 200,
+                          child: GPSelectableCard(
+                            title: task.name,
+                            description: task.description,
+                            tagText: task.sourceWorkspaceName ?? task.tag.asString,
+                            tagColor: task.tagColor,
+                            importanceText: task.importance.asString,
+                            importanceColor: task.importanceColor,
+                            date: task.createdAt,
+                            expandedChild: Text("Details about ${task.name}"),
+                          ),
+                        ),
+                      ),
+                      childWhenDragging: Opacity(
+                        opacity: 0.4,
+                        child: GPSelectableCard(
+                          title: task.name,
+                          description: task.description,
+                          tagText: task.sourceWorkspaceName ?? task.tag.asString,
+                          tagColor: task.tagColor,
+                          importanceText: task.importance.asString,
+                          importanceColor: task.importanceColor,
+                          date: task.createdAt,
+                          expandedChild: Text("Details about ${task.name}"),
+                        ),
+                      ),
+                      child: GPSelectableCard(
+                        title: task.name,
+                        description: task.description,
+                        tagText: task.sourceWorkspaceName ?? task.tag.asString,
+                        tagColor: task.tagColor,
+                        importanceText: task.importance.asString,
+                        importanceColor: task.importanceColor,
+                        date: task.createdAt,
+                        expandedChild: Text("Details about ${task.name}"),
+                      ),
                     );
                   },
                 );
               }),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
-
+  
   Widget _buildAddNewCard() {
     return GestureDetector(
       onTap: () {
-        // Here you would call a helper to show a GPFormDialog to create a new task
+        // Could call helper to show a GPFormDialog to create a new task
         Get.snackbar("Action", "Add New Task button pressed!");
       },
       child: DottedBorder(

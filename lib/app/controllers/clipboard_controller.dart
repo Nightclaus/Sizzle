@@ -11,6 +11,7 @@ class ClipboardController extends GetxController {
   // --- STATE VARIABLES ---
   var isLoading = true.obs;
   RxList<Task> allTasks = <Task>[].obs;
+  var columnTasks = <String, RxList<Task>>{}.obs;
 
   // Tab management
   var openTabs = <String>['Tasks'].obs;
@@ -19,6 +20,8 @@ class ClipboardController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    columnTasks['Tasks'] = <Task>[].obs;
+
     fetchAllTasks();
   }
 
@@ -108,6 +111,53 @@ class ClipboardController extends GetxController {
       selectedTabIndex.value--;
     } else if (openTabs.isEmpty) {
       selectedTabIndex.value = -1; // No tabs left
+    }
+  }
+
+  /// Handles moving a task FROM the main grid INTO a side column.
+  void handleTaskDropOnColumn(Task task, String columnName) {
+    // 1. Remove the task from the main grid's source list.
+    allTasks.removeWhere((t) => t.id == task.id);
+    
+    // 2. Add the task to the target column's list.
+    if (columnTasks.containsKey(columnName)) {
+      columnTasks[columnName]!.add(task);
+    } else {
+      // This is a safety net in case the column list wasn't initialized
+      columnTasks[columnName] = <Task>[task].obs;
+    }
+
+    // 3. Persist the change in Firestore (optional, depends on your schema).
+    // This is where you might update a "status" or "category" field on the task.
+    // For now, we'll just show a snackbar.
+    Get.snackbar(
+      "Task Assigned",
+      "'${task.name}' moved to column '$columnName'.",
+      snackPosition: SnackPosition.BOTTOM,
+    );
+  }
+
+  /// Handles moving a task FROM a side column BACK to the main grid.
+  void handleTaskDropOnGrid(Task task) {
+    bool taskWasFoundAndMoved = false;
+
+    // 1. Find which column the task is currently in and remove it.
+    columnTasks.forEach((columnName, taskList) {
+      int taskIndex = taskList.indexWhere((t) => t.id == task.id);
+      if (taskIndex != -1) {
+        taskList.removeAt(taskIndex);
+        taskWasFoundAndMoved = true;
+      }
+    });
+
+    // 2. If the task was found and removed, add it back to the main grid's list.
+    if (taskWasFoundAndMoved) {
+      allTasks.add(task);
+      Get.snackbar(
+        "Task Unassigned",
+        "'${task.name}' moved back to the main grid.",
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 }
