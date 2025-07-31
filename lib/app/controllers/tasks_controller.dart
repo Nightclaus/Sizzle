@@ -124,8 +124,6 @@ class TasksController extends GetxController {
 
       // Populate columns with the primary tasks.
       for (var taskDoc in primaryTasksSnapshot.docs) {
-        print("HEEKMDANDDO");
-        print(taskDoc);
         final task = Task.fromFirestore(taskDoc);
         // Find the correct parent column in our new temporary list.
         final parentColumn = newColumnsState.firstWhereOrNull((col) => col.id == task.parentId);
@@ -213,7 +211,16 @@ class TasksController extends GetxController {
       // You might want to add a createdAt timestamp here as well
       "createdAt": FieldValue.serverTimestamp(),
     });
-    
+
+    void recursivelyRemove(List<Task> taskList) {
+      for (int i = taskList.length - 1; i >= 0; i--) {
+        if (taskList[i].id == task.id) {
+          taskList.removeAt(i);
+        }
+      }
+    }
+
+    recursivelyRemove(columns[columnIndex].tasks);
     // Add to local state
     columns[columnIndex].tasks.add(task);
   }

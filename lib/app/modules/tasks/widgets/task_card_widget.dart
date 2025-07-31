@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../models/task_model.dart';
 import '../../../controllers/tasks_controller.dart';
-//import 'add_task_dialog.dart'; // Edit Button, Edit mode has not been re-added yet
+import 'add_task_dialog.dart'; // Edit Button, Edit mode has not been re-added yet
 import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
 
 // TODO : Make a getHeight() function to make the column expansion more smooth
@@ -30,7 +30,7 @@ class TaskCardWidget extends StatelessWidget {
       importanceColor: task.importanceColor,
       date: DateTime.now().subtract(const Duration(days: 3)),
       onEdit: () {
-        Get.snackbar("Action", "Edit button clicked!", snackPosition: SnackPosition.BOTTOM);
+        showAddTaskDialog(context, task.parentId, task);
       },
       onDelete: () {
         tasksController.deleteTask(task.parentId, task.id);

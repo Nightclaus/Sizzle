@@ -21,14 +21,14 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? exi
       'key': 'name',
       'type': 'text',
       'label': 'Task Name',
-      'initialValue': '',
+      'initialValue': editMode ? existingTask!.name : '',
       'required': true,
     },
     {
       'key': 'description',
       'type': 'text',
       'label': 'Description (Optional)',
-      'initialValue': '',
+      'initialValue': editMode ? existingTask!.description : '',
       'maxLines': 2,
     },
     {
@@ -36,7 +36,7 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? exi
       'type': 'dropdown',
       'label': 'Tag',
       'options': ['work', 'passion'], // Using simple strings
-      'initialValue': 'work',
+      'initialValue': editMode ? existingTask!.tag.asString :'work',
       'required': true,
     },
     {
@@ -44,16 +44,16 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? exi
       'type': 'dropdown',
       'label': 'Importance',
         'options': ['high', 'medium', 'low'],
-        'initialValue': 'medium',
+        'initialValue': editMode ? existingTask!.importance.asString : 'medium',
         'required': true,
       },
     ];
 
     return GPFormDialog.show(
       context: context,
-      title: 'Add New Task',
+      title: editMode ? 'Edit Task' :'Add New Task',
       fields: formFields,
-      submitButtonText: 'Add Task',
+      submitButtonText: editMode ? 'Edit' : 'Add Task',
       onSubmit: (formData) {
         Get.snackbar(
           'New Item Added',
@@ -72,9 +72,9 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? exi
             importance: getTaskImportance(formData['importance'])!,
             parentId: columnId,
           );
-        } else { // TODO : RE-ADD EDIT FUNCTION
+        } else {
           newTask = Task(
-            id: uuid.v4(), // Used v4 for full randomness
+            id: existingTask!.id,
             name: formData['name'],
             description: formData['description'],
             tag: getTaskTag(formData['tag'])!,
