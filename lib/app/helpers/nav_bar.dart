@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../routes/app_pages.dart'; // Import your routes
+import '../controllers/auth_controller.dart'; // Import your routes
 
 class SizzleNavBar extends StatelessWidget implements PreferredSizeWidget {
   /// An optional list of action widgets to display on the right side.
@@ -11,6 +12,7 @@ class SizzleNavBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final AuthController authController = Get.find<AuthController>();
 
     return AppBar(
       backgroundColor: Colors.white,
@@ -67,6 +69,17 @@ class SizzleNavBar extends StatelessWidget implements PreferredSizeWidget {
           //   route: Routes.FARM,
           //   theme: theme,
           // ),
+
+          Spacer(),
+
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: "Sign Out",
+            onPressed: () {
+              // This calls the signOut method on the global AuthController instance.
+              authController.signOut();
+            },
+          ),
         ],
       ),
       actions: actions,
