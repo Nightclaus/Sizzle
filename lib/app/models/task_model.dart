@@ -81,7 +81,7 @@ class Task {
       name: data['name'] ?? 'Untitled Task',
       description: data['description'] ?? '',
       createdAt: (data['createdAt'] as Timestamp? ?? Timestamp.now()).toDate(),
-      parentId: 'FACTORY',
+      parentId: data['parentId'],
       tag: getTaskTag(data['task_tag'])!,
       importance: getTaskImportance(data['task_importance'])!,
       sourceWorkspaceName: workspaceName,

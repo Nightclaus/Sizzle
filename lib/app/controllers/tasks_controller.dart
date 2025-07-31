@@ -93,32 +93,67 @@ class TasksController extends GetxController {
       return;
     }
     isLoading.value = true;
-    debugPrint("[LOADER] Loading data in ${isWorkspaceMode ? 'Workspace' : 'Personal'} mode...");
+    debugPrint("[LOAD-START] Loading data in ${isWorkspaceMode ? 'Workspace' : 'Personal'} mode...");
 
     try {
+      // --- Step 1: Fetch all necessary data from Firestore ---
+
+      // Fetch the columns. This is the base structure.
       final columnsSnapshot = await columnsDbRef!.get();
-      final fetchedColumns = columnsSnapshot.docs
+      
+      // Fetch the primary set of tasks (either personal or workspace tasks).
+      final primaryTasksSnapshot = await tasksDbRef!.get();
+      
+      // In Workspace Mode, we ALSO need to fetch the user's personal tasks.
+      // We use a local variable to hold this data.
+      QuerySnapshot<Map<String, dynamic>>? personalTasksSnapshot;
+      if (isWorkspaceMode && userId != null) {
+        personalTasksSnapshot = await _root
+            .collection('UserData')
+            .doc(userId)
+            .collection('Tasks')
+            .get();
+      }
+
+      // --- Step 2: Assemble the final state in a temporary variable ---
+
+      // Create the column objects. Their task lists are initially empty.
+      final List<TaskColumn> newColumnsState = columnsSnapshot.docs
           .map((doc) => TaskColumn(id: doc.id, title: doc.data()['name'] ?? 'Untitled Column'))
           .toList();
 
-      final tasksSnapshot = await tasksDbRef!.get();
-      for (var taskDoc in tasksSnapshot.docs) {
+      // Populate columns with the primary tasks.
+      for (var taskDoc in primaryTasksSnapshot.docs) {
+        print("HEEKMDANDDO");
+        print(taskDoc);
         final task = Task.fromFirestore(taskDoc);
-        // Find the column this task belongs to and add it.
-        final parentColumn = fetchedColumns.firstWhereOrNull((col) => col.id == task.parentId);
+        // Find the correct parent column in our new temporary list.
+        final parentColumn = newColumnsState.firstWhereOrNull((col) => col.id == task.parentId);
         parentColumn?.tasks.add(task);
       }
 
-      columns.value = fetchedColumns;
-      debugPrint("[LOADER] Successfully loaded ${columns.length} columns.");
+      // If we fetched personal tasks (in workspace mode), add them as well.
+      if (personalTasksSnapshot != null) {
+        for (var taskDoc in personalTasksSnapshot.docs) {
+          final task = Task.fromFirestore(taskDoc);
+          final parentColumn = newColumnsState.firstWhereOrNull((col) => col.id == task.parentId);
+          parentColumn?.tasks.add(task);
+        }
+      }
+
+      // --- Step 3: Update the official reactive state ONCE at the end ---
+      
+      columns.value = newColumnsState;
+      debugPrint("[LOAD-SUCCESS] Loaded ${columns.length} columns and their tasks.");
+
     } catch (e) {
       Get.snackbar("Error", "Failed to load data from the database.");
-      debugPrint("[LOADER] Firestore Error: $e");
+      debugPrint("[LOAD-ERROR] Firestore Error: $e");
     } finally {
       isLoading.value = false;
     }
   }
-
+    
   /// Adds a new column to the correct Firestore location.
   Future<void> addColumn(String title, [String? uid]) async {
   if (title.trim().isEmpty || columnsDbRef == null) return;
