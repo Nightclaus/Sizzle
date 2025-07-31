@@ -4,177 +4,204 @@ import 'package:uuid/uuid.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// Assuming these models are in your project structure
+// Models and Services
 import '../models/task_column_model.dart';
 import '../models/task_model.dart';
+import '../models/workspace_model.dart';
+import '../helpers/workspace_service.dart';
 
 class TasksController extends GetxController {
+  // --- CORE PROPERTIES ---
+  final bool isWorkspaceMode; // This flag, set at creation, determines all behavior.
+  
+  // --- STATE VARIABLES ---
   RxList<TaskColumn> columns = <TaskColumn>[].obs;
-  final userId = FirebaseAuth.instance.currentUser?.uid;
-  final _uuid = const Uuid();
-  final root = FirebaseFirestore.instance;
+  var isLoading = false.obs;
 
-  // ignore: prefer_typing_uninitialized_variables
-  var db;
+  // --- SERVICES & UTILITIES ---
+  final WorkspaceService _workspaceService = Get.find<WorkspaceService>();
+  final String? userId = FirebaseAuth.instance.currentUser?.uid;
+  final _uuid = const Uuid();
+  final _root = FirebaseFirestore.instance;
+
+  // --- CONSTRUCTOR ---
+  TasksController({required this.isWorkspaceMode});
+
+  // --- DYNAMIC DATABASE PATH GETTERS ---
+
+  /// Dynamically returns the correct Firestore reference for COLUMNS
+  /// based on the controller's mode. Returns null if prerequisites are not met.
+  CollectionReference<Map<String, dynamic>>? get columnsDbRef {
+    if (isWorkspaceMode) {
+      final workspaceId = _workspaceService.selectedWorkspace.value?.id;
+      if (workspaceId == null) return null; // No workspace selected
+      return _root.collection('Workspaces').doc(workspaceId).collection('Columns');
+    } else {
+      if (userId == null) return null; // No user logged in
+      return _root.collection('UserData').doc(userId).collection('Dashboard');
+    }
+  }
+
+  /// Dynamically returns the correct Firestore reference for TASKS
+  /// based on the controller's mode. Returns null if prerequisites are not met.
+  CollectionReference<Map<String, dynamic>>? get tasksDbRef {
+    if (isWorkspaceMode) {
+      final workspaceId = _workspaceService.selectedWorkspace.value?.id;
+      if (workspaceId == null) return null;
+      return _root.collection('Workspaces').doc(workspaceId).collection('Tasks');
+    } else {
+      if (userId == null) return null;
+      return _root.collection('UserData').doc(userId).collection('Tasks');
+    }
+  }
 
   @override
   void onInit() {
     super.onInit();
-    db = root.collection("UserData").doc(userId);
     
-    // Load data from Firestore when the controller is initialized
-    if (columns.isEmpty) {
-      _loadDataFromFirestore();
+    if (isWorkspaceMode) {
+      // --- WORKSPACE MODE LOGIC ---
+      // This controller instance will react to global workspace changes.
+      ever(_workspaceService.selectedWorkspace, (Workspace? workspace) {
+        // When the selected workspace changes, reload the data.
+        if (workspace != null) {
+          loadData();
+        } else {
+          // If workspace is cleared, empty the columns.
+          columns.clear();
+        }
+      });
+
+      // Also load data for the initially selected workspace, if there is one.
+      if (_workspaceService.selectedWorkspace.value != null) {
+        loadData();
+      }
+    } else {
+      // --- PERSONAL MODE LOGIC ---
+      // This controller instance will only load the user's personal data once.
+      loadData();
     }
   }
 
-  /// Loads all columns and their associated tasks directly from Firestore.
-  void _loadDataFromFirestore() async {
-    debugPrint("[INITIATOR] Loading data from Firestore...");
-
-    // 1. Fetch all columns (from the "Dashboard" collection)
-    try {
-      final columnsSnapshot = await db.collection("Dashboard").get();
-      final fetchedColumns = <TaskColumn>[];
-
-      for (var doc in columnsSnapshot.docs) {
-        final data = doc.data();
-        fetchedColumns.add(TaskColumn(
-          id: doc.id,
-          title: data['name'] ?? 'Untitled Column',
-        ));
-      }
-      columns.value = fetchedColumns; // Directly assign the list of columns
-      debugPrint("[INITIATOR] Successfully loaded ${columns.length} columns.");
-
-    } catch (e) {
-      debugPrint("[INITIATOR] Error fetching columns: $e");
+  /// Universal data loader that uses the dynamic DB getters.
+  void loadData() async {
+    // Abort if the required database paths are not available.
+    if (columnsDbRef == null || tasksDbRef == null) {
+      columns.clear();
+      return;
     }
+    isLoading.value = true;
+    debugPrint("[LOADER] Loading data in ${isWorkspaceMode ? 'Workspace' : 'Personal'} mode...");
 
-    // 2. Fetch all tasks and assign them to the correct columns
     try {
-      final tasksSnapshot = await db.collection("Tasks").get();
-      debugPrint("[INITIATOR] Building ${tasksSnapshot.docs.length} tasks...");
+      final columnsSnapshot = await columnsDbRef!.get();
+      final fetchedColumns = columnsSnapshot.docs
+          .map((doc) => TaskColumn(id: doc.id, title: doc.data()['name'] ?? 'Untitled Column'))
+          .toList();
 
-      for (var doc in tasksSnapshot.docs) {
-          final map = doc.data();
-          final parentId = map["parentId"];
-          
-          // Find the column this task belongs to
-          final columnIndex = columns.indexWhere((col) => col.id == parentId);
-
-          if (columnIndex != -1) {
-            final task = Task(
-              id: doc.id,
-              name: map["name"] ?? 'Untitled Task',
-              description: map["description"] ?? '',
-              tag: _stringToTaskTag[map["task_tag"]] ?? TaskTag.passion, // Safely handle enum conversion
-              importance: _stringToTaskImportance[map["task_importance"]] ?? TaskImportance.low,
-              parentId: parentId
-            );
-            columns[columnIndex].tasks.add(task);
-          } else {
-            // This can happen if a column was deleted but its tasks were not
-            debugPrint("[INITIATOR] Warning: Task '${doc.id}' has an invalid or missing parent column ('$parentId'). Skipping.");
-          }
+      final tasksSnapshot = await tasksDbRef!.get();
+      for (var taskDoc in tasksSnapshot.docs) {
+        final task = Task.fromFirestore(taskDoc);
+        // Find the column this task belongs to and add it.
+        final parentColumn = fetchedColumns.firstWhereOrNull((col) => col.id == task.parentId);
+        parentColumn?.tasks.add(task);
       }
+
+      columns.value = fetchedColumns;
+      debugPrint("[LOADER] Successfully loaded ${columns.length} columns.");
     } catch (e) {
-        debugPrint("[INITIATOR] Error fetching tasks: $e");
+      Get.snackbar("Error", "Failed to load data from the database.");
+      debugPrint("[LOADER] Firestore Error: $e");
+    } finally {
+      isLoading.value = false;
     }
-    
-    columns.refresh(); // Refresh the UI after all data is loaded
-    debugPrint("[INITIATOR] Firestore data loading complete.");
   }
 
-  /// Adds a new column to the UI and creates a document in the "Dashboard" collection.
+  /// Adds a new column to the correct Firestore location.
   Future<void> addColumn(String title, [String? uid]) async {
-    if (title.trim().isEmpty) return;
+  if (title.trim().isEmpty || columnsDbRef == null) return;
 
-    uid ??= _uuid.v4(); // if uid is null, assign a new UUID
-    final newColumn = TaskColumn(id: uid, title: title.trim());
-
-    // Add to Firestore first
-    await db.collection("Dashboard").doc(uid).set({
-      "name": newColumn.title,
-    });
-
-    // Then update the local state for immediate UI feedback
+    final newColumnId = uid ?? _uuid.v4();
+    final newColumn = TaskColumn(id: newColumnId, title: title.trim());
+    
+    // Add to Firestore
+    await columnsDbRef!.doc(newColumnId).set({"name": newColumn.title});
+    // Add to local state for immediate UI update
     columns.add(newColumn);
   }
 
-  /// Deletes a column from the UI and Firestore.
-  void deleteColumn(String columnUID) {
+  /// Deletes a column from the correct Firestore location.
+  void deleteColumn(String columnId) async {
+    if (columnsDbRef == null) return;
+    
+    // Delete from Firestore
+    await columnsDbRef!.doc(columnId).delete();
     // Delete from local state
-    columns.removeWhere((col) => col.id == columnUID);
+    columns.removeWhere((col) => col.id == columnId);
     
-    // Delete the column document from Firestore
-    db.collection("Dashboard").doc(columnUID).delete();
-    
-    // Note: This does not automatically delete the tasks within the column.
-    // A cloud function or a batch delete would be needed for that.
+    // Note: This does not delete the tasks within the column.
+    // A more robust solution would use a batch write or a Cloud Function.
   }
 
-  /// Adds a new task to a column in the UI and creates a document in the "Tasks" collection.
+  /// Adds a new task to the correct Firestore location.
   Future<void> addTask(String columnId, Task task) async {
+    if (tasksDbRef == null) return;
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
-    if (columnIndex == -1) {
-      debugPrint("[addTask] Error: Column '$columnId' not found.");
-      return;
-    }
-
+    if (columnIndex == -1) return;
+    
     // Add to Firestore
-    await db.collection("Tasks").doc(task.id).set({
+    await tasksDbRef!.doc(task.id).set({
       "name": task.name,
       "description": task.description,
-      "task_tag": task.tag.toString().split('.').last, // 'TaskTag.work' -> 'work'
-      "task_importance": task.importance.toString().split('.').last,
+      "task_tag": task.tag.asString,
+      "task_importance": task.importance.asString,
       "parentId": columnId,
+      // You might want to add a createdAt timestamp here as well
+      "createdAt": FieldValue.serverTimestamp(),
     });
-
-    // Add to the local state
+    
+    // Add to local state
     columns[columnIndex].tasks.add(task);
   }
 
-  /// Deletes a task from a column in the UI and from the "Tasks" collection in Firestore.
-  void deleteTask(String columnId, String taskId) {
+  /// Deletes a task from the correct Firestore location.
+  void deleteTask(String columnId, String taskId) async {
+    if (tasksDbRef == null) return;
+    
+    // Delete from Firestore
+    await tasksDbRef!.doc(taskId).delete();
     // Delete from local state
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex != -1) {
       columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
     }
-    
-    // Delete from Firestore
-    db.collection("Tasks").doc(taskId).delete();
   }
 
-  /// Moves a task from one column to another and updates its parentId in Firestore.
-  void moveTask({
+  /// Moves a task from one column to another in the correct Firestore location.
+  Future<void> moveTask({
     required Task task,
     required TaskColumn fromColumn,
-    required TaskColumn toColumn
+    required TaskColumn toColumn,
   }) async {
+    if (tasksDbRef == null) return;
+
     // Update local state for instant UI feedback
     fromColumn.tasks.removeWhere((t) => t.id == task.id);
     task.parentId = toColumn.id;
     toColumn.tasks.add(task);
 
     // Update the parentId field in Firestore
-    await db.collection("Tasks").doc(task.id).update({
-      "parentId": toColumn.id,
-    });
+    await tasksDbRef!.doc(task.id).update({"parentId": toColumn.id});
   }
   
-  /// Reorders a task within the same column for UI updates (e.g., drag and drop).
-  /// This does not require a database update unless you need to persist the order.
+  /// Reorders a task within the same column (local state only).
   void reorderTaskInColumn(String columnId, int oldIndex, int newIndex) {
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex != -1) {
       final task = columns[columnIndex].tasks.removeAt(oldIndex);
-      // Adjust index because the item has been removed
-      if (oldIndex < newIndex) {
-        newIndex -= 1;
-      }
+      if (oldIndex < newIndex) newIndex -= 1;
       columns[columnIndex].tasks.insert(newIndex, task);
+      // Note: No DB update is needed unless you need to persist order.
     }
   }
 
@@ -183,19 +210,7 @@ class TasksController extends GetxController {
     try {
         return columns.firstWhere((col) => col.tasks.any((t) => t.id == task.id));
     } catch(e) {
-        return null; // Return null if the task is not found in any column
+        return null;
     }
   }
-
-  // --- Mappers for converting Firestore string data to Enums ---
-  final Map<String, TaskTag> _stringToTaskTag = {
-    "work": TaskTag.work,
-    "passion": TaskTag.passion,
-  };
-
-  final Map<String, TaskImportance> _stringToTaskImportance = {
-    "high": TaskImportance.high,
-    "medium": TaskImportance.medium,
-    "low": TaskImportance.low,
-  };
 }

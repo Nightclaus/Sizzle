@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
 import 'app/routes/app_pages.dart';
+import 'app/helpers/workspace_service.dart';
+
 import 'firebase_options.dart';
 import 'app/controllers/auth_controller.dart'; 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +17,8 @@ void main() async {
   );
 
   await dotenv.load(fileName: '.env');
+
+  Get.put(WorkspaceService());
   //print('Loaded Client ID: ${dotenv.env['GOOGLE_CLIENT_ID']}');
   runApp(MyApp());
 }

@@ -13,38 +13,55 @@ class SizzleNavBar extends StatelessWidget implements PreferredSizeWidget {
     final theme = Theme.of(context);
 
     return AppBar(
-      // We use a white/light background for a clean look
       backgroundColor: Colors.white,
-      foregroundColor: Colors.black, // Makes icons and text black
-      elevation: 2.0, // A subtle shadow
-      automaticallyImplyLeading: false, // We handle all navigation, so no back button
-
-      // The title is now our main navigation row
+      foregroundColor: Colors.black,
+      elevation: 2.0,
+      automaticallyImplyLeading: false,
       title: Row(
         children: [
-          // This part is static, inspired by your design
+          // Static brand text
           const Text(
             "Sizzle /",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
           ),
           const SizedBox(width: 24),
 
-          // Navigation buttons
+          // --- NAVIGATION BUTTONS ---
+
+          // 1. Workspaces Button (simple navigation)
           _buildNavButton(
             title: 'Workspaces',
-            route: Routes.HOME, // Assuming HOME is your workspaces screen
+            route: Routes.HOME,
             theme: theme,
           ),
+
+          // 2. Personal Tasks Button
+          // This button navigates to the TASKS route and passes 'false'
+          // to tell the TasksController to run in "Personal Mode".
           _buildNavButton(
             title: 'My Tasks',
             route: Routes.TASKS,
             theme: theme,
+            // Provide a custom onPressed to pass arguments
+            onPressed: () => Get.toNamed(Routes.TASKS, arguments: false),
           ),
+          
+          // 3. Clipboard Button (simple navigation)
           _buildNavButton(
             title: 'Clipboard',
             route: Routes.CLIPBOARD,
             theme: theme,
           ),
+
+          _buildNavButton(
+            title: 'Team',
+            route: Routes.TASKS,
+            theme: theme,
+            // Provide a custom onPressed to pass arguments
+            onPressed: () => Get.toNamed(Routes.TASKS, arguments: true),
+          ),
+
+          // 4. (Example) Farm Button (simple navigation)
           // _buildNavButton(
           //   title: 'My Farm',
           //   route: Routes.FARM,
@@ -56,24 +73,27 @@ class SizzleNavBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  /// Helper method to build a single navigation button.
-  /// It styles itself based on whether its route is currently active.
+  /// --- THE NEW, MORE POWERFUL HELPER METHOD ---
+  ///
+  /// Builds a navigation button.
+  /// - [onPressed] is an optional custom callback.
+  /// - If [onPressed] is null, it defaults to simple navigation (`Get.offAllNamed`).
   Widget _buildNavButton({
     required String title,
     required String route,
     required ThemeData theme,
+    VoidCallback? onPressed, // <-- Optional custom action
   }) {
-    // Check if this button's route is the current active route
+    // Determine if this button's route is the currently active one.
+    // This is purely for styling.
     final bool isActive = Get.currentRoute == route;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0),
       child: TextButton(
-        // Use Get.offAllNamed to clear the navigation stack, which is common
-        // for top-level navigation. Use Get.toNamed for other cases.
-        onPressed: () => Get.offAllNamed(route),
+        // If a custom `onPressed` is provided, use it. Otherwise, use the default.
+        onPressed: onPressed ?? () => Get.offAllNamed(route),
         style: TextButton.styleFrom(
-          // Remove the default splash effect for a cleaner look
           splashFactory: NoSplash.splashFactory,
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),

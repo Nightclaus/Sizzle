@@ -19,7 +19,8 @@ class TaskCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tasksController = Get.find<TasksController>();
+    final bool isWorkspaceMode = Get.arguments as bool? ?? false;
+    final TasksController tasksController = Get.find<TasksController>(tag: isWorkspaceMode.toString()); // Added this to sync with the new screen
     return GPSelectableCard(
       title: task.name,
       description: task.description,

@@ -10,6 +10,7 @@ abstract class Routes {
   static const TEST = _Paths.TEST;
   static const SPLASH = _Paths.SPLASH;
   static const CLIPBOARD = _Paths.CLIPBOARD;
+  static const TEAM = _Paths.TEAM;
   // Other routes here aswell
 }
 
@@ -21,6 +22,7 @@ abstract class _Paths {
   static const TASKS = '/tasks';
   static const TEST = '/test';
   static const SPLASH = '/splash';
-  static const CLIPBOARD = '/clipboard';
+  static const CLIPBOARD = '/clipboard'; 
+  static const TEAM = '/TEAM';
   // Additional paths will be added here
 }

@@ -5,6 +5,9 @@ import '../models/user_profile_data.dart';
 import '../models/workspace_model.dart';
 import 'package:flutter/material.dart';
 import '../../general_purpose_widgets/general_purpose_widgets.dart';
+
+import '../helpers/workspace_service.dart';
+import '../routes/app_pages.dart';
 import 'dart:math';
 
 class WorkspacesController extends GetxController {
@@ -33,6 +36,19 @@ class WorkspacesController extends GetxController {
         _showJoinCodePopup(code);
       }
     });
+  }
+
+  final WorkspaceService _workspaceService = Get.find<WorkspaceService>();
+
+  // ... (all your existing properties and methods are unchanged)
+
+  /// This method is called when a user taps a workspace card in the UI.
+  void onWorkspaceSelected(Workspace workspace) {
+    // 1. Tell the global service which workspace is now active.
+    _workspaceService.selectWorkspace(workspace);
+
+    // 2. Navigate to the screen that displays the tasks for that workspace.
+    Get.toNamed(Routes.TASKS, arguments: true); // Go to tasks but in Workspace Mode
   }
 
   Future<void> createWorkspace(String name) async {

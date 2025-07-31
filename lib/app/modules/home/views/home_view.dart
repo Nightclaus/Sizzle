@@ -157,8 +157,8 @@ class HomeScreen extends GetView<WorkspacesController> {
     return GestureDetector(
       onTap: () {
         /// Do something Placeholder
-        Get.snackbar("Workspace Tapped", "You pressed on '${workspace.name}'", snackPosition: SnackPosition.BOTTOM);
-        // Example: Get.toNamed(Routes.TASKS, arguments: workspace.id);
+        controller.onWorkspaceSelected(workspace);
+        // Other choice is: Get.toNamed(Routes.TASKS, arguments: workspace.id); But global variable is more accessible
       },
       child: SizedBox(
         width: 150,

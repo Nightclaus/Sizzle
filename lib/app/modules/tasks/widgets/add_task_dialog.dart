@@ -6,7 +6,8 @@ import '../../../controllers/tasks_controller.dart';
 import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
 
 Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? existingTask]) async {
-  final tasksController = Get.find<TasksController>();
+  final bool isWorkspaceMode = Get.arguments as bool? ?? false;
+  final TasksController tasksController = Get.find<TasksController>(tag: isWorkspaceMode.toString());
   final Uuid uuid = const Uuid();
 
   bool editMode = false; // ie title: Text((editMode ? 'Edit Task' : 'Add New Task')),

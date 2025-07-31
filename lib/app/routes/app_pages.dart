@@ -46,6 +46,11 @@ class AppPages {
       page: () => ClipboardScreen(),
       binding: ClipboardBinding(),
     ),
+    GetPage( // Unused, NavBar uses toNamed to pass argument
+      name: _Paths.TEAM,
+      page: () => TasksPage(),
+      binding: TasksBinding(),
+    ),
     GetPage(
       name: _Paths.SPLASH,
       page: () => SplashScreen(),
