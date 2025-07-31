@@ -48,7 +48,7 @@ class WorkspacesController extends GetxController {
     _workspaceService.selectWorkspace(workspace);
 
     // 2. Navigate to the screen that displays the tasks for that workspace.
-    Get.toNamed(Routes.TASKS, arguments: true); // Go to tasks but in Workspace Mode
+    Get.toNamed(Routes.TEAM, arguments: true); // Go to tasks but in Workspace Mode
   }
 
   Future<void> createWorkspace(String name) async {
