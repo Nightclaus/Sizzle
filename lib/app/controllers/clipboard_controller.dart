@@ -2,7 +2,6 @@ import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/task_model.dart';
-import '../models/workspace_model.dart';
 
 class ClipboardController extends GetxController {
   final _auth = FirebaseAuth.instance;
@@ -10,90 +9,164 @@ class ClipboardController extends GetxController {
 
   // --- STATE VARIABLES ---
   var isLoading = true.obs;
-  RxList<Task> allTasks = <Task>[].obs;
-  var columnTasks = <String, RxList<Task>>{}.obs;
-
-  // Tab management
-  var openTabs = <String>['Tasks'].obs;
+  RxList<Task> allTasks = <Task>[].obs; // Holds "uncategorized" tasks for the main grid
+  var columnTasks = <String, RxList<Task>>{}.obs; // Holds categorised tasks for each tab
+  var openTabs = <String>[].obs;
   var selectedTabIndex = 0.obs;
+
+  // Helper to get the current user's database path
+  DocumentReference<Map<String, dynamic>>? get _userDbRef => 
+      _auth.currentUser?.uid != null ? _firestore.collection("UserData").doc(_auth.currentUser!.uid) : null;
+
+  // --- LOCAL AUTH STATE ---
+  // Create a local Rx variable to hold the user state for this controller.
+  final Rx<User?> _firebaseUser = Rx<User?>(null);
 
   @override
   void onInit() {
     super.onInit();
-    columnTasks['Tasks'] = <Task>[].obs;
+    // We bind the fetchAllData method to the auth state.
+    // This will automatically run when the user logs in.
+    _firebaseUser.bindStream(_auth.authStateChanges());
 
-    fetchAllTasks();
+    // 2. Use 'ever' to listen to OUR Rx variable, not the raw stream.
+    //    This worker will now fire whenever _firebaseUser changes.
+    ever(_firebaseUser, (User? user) {
+      if (user == null) {
+        // If the user logs out, clear all the data to prevent showing
+        // the previous user's data.
+        isLoading.value = false;
+        allTasks.clear();
+        columnTasks.clear();
+        openTabs.clear();
+      } else {
+        // If a user logs in (or is already logged in), fetch their data.
+        fetchAllData();
+      }
+    });   
   }
-
-  Future<void> fetchAllTasks() async {
+  
+  /// Main data loading function. Fetches everything needed for the screen.
+  Future<void> fetchAllData() async {
+    if (_userDbRef == null) return; // Don't run if user is not logged in
     isLoading.value = true;
+    
     try {
-      final personal = await _fetchPersonalTasks();
-      final assigned = await _fetchAssignedTasks();
-      allTasks.value = [...personal, ...assigned];
+      // 1. Fetch ALL personal tasks first into a master list.
+      final tasksSnapshot = await _userDbRef!.collection("Tasks").get();
+      final masterTaskList = tasksSnapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
+
+      // 2. Fetch all "Checkbox" documents, which define our tabs and their contents.
+      final checkboxesSnapshot = await _userDbRef!.collection("Checkboxes").get();
+      
+      final Set<String> categorizedTaskIds = {};
+      final List<String> fetchedTabs = [];
+
+      // Clear previous state
+      columnTasks.clear();
+
+      for (var doc in checkboxesSnapshot.docs) {
+        final tabName = doc.id;
+        fetchedTabs.add(tabName);
+
+        final taskIdsInColumn = List<String>.from(doc.data()['taskIds'] ?? []);
+        
+        // Find the full Task objects from the master list that belong in this column
+        final tasksForThisColumn = masterTaskList.where((task) => taskIdsInColumn.contains(task.id)).toList();
+        columnTasks[tabName] = tasksForThisColumn.obs;
+        
+        // Keep track of which tasks have been categorized
+        categorizedTaskIds.addAll(taskIdsInColumn);
+      }
+      
+      // If no tabs were found, initialize the default 'Tasks' tab
+      if (fetchedTabs.isEmpty) {
+        fetchedTabs.add('Tasks');
+        columnTasks['Tasks'] = <Task>[].obs;
+      }
+      
+      openTabs.value = fetchedTabs;
+
+      // 3. The "main grid" tasks are any tasks NOT in a category.
+      allTasks.value = masterTaskList.where((task) => !categorizedTaskIds.contains(task.id)).toList();
+
+      ///// IN PRODUCTION this will be used to fetch assigned tasks from the workspace, but that has not been set up yet ////
+      //final assigned = await _fetchAssignedTasks();
+      //allTasks.addAll(assigned);
     } catch (e) {
-      Get.snackbar("Error", "Could not load tasks: $e");
+      Get.snackbar("Error", "Could not load clipboard data: $e");
     } finally {
       isLoading.value = false;
     }
   }
 
-  // --- DATA FETCHING LOGIC ---
+  /// Handles moving a task FROM the main grid INTO a side column.
+  Future<void> handleTaskDropOnColumn(Task task, String columnName) async {
+    if (_userDbRef == null) return;
 
-  Future<List<Task>> _fetchPersonalTasks() async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return [];
+    // --- UI Update First (for instant feedback) ---
+    allTasks.removeWhere((t) => t.id == task.id);
 
-    final snapshot = await _firestore.collection("UserData").doc(userId).collection("Tasks").get();
-    return snapshot.docs.map((doc) => Task.fromFirestore(doc, workspaceName: "Personal")).toList();
+    for (var entry in columnTasks.entries) { // Clear the original, it is now being dragged so it doesnt exist
+      entry.value.removeWhere((t) => t.id == task.id);
+    }
+    columnTasks[columnName]!.add(task);
+
+    // --- Persist the Change in Firestore ---
+    try {
+      final columnDocRef = _userDbRef!.collection("Checkboxes").doc(columnName);
+      // Atomically add the task's ID to the 'taskIds' array in the column's document.
+      // Using set with merge:true creates the document if it doesn't exist.
+      await columnDocRef.set({
+        'taskIds': FieldValue.arrayUnion([task.id])
+      }, SetOptions(merge: true));
+    } catch (e) {
+      Get.snackbar("Error", "Could not move task. Reverting.");
+      // --- Revert UI on Failure ---
+      columnTasks[columnName]!.removeWhere((t) => t.id == task.id);
+      allTasks.add(task);
+    }
   }
 
-  Future<List<Task>> _fetchAssignedTasks() async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return [];
+  /// Handles moving a task FROM a side column BACK to the main grid.
+  Future<void> handleTaskDropOnGrid(Task task) async {
+    if (_userDbRef == null) return;
 
-    // NOTE: This multi-step fetch is based on the requested schema.
-    // For large-scale apps, denormalizing data or using a different schema
-    // would be more efficient than these nested lookups.
-
-    // 1. Get all workspace documents the user has joined
-    final joinedWorkspacesSnapshot = await _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').get();
-    if (joinedWorkspacesSnapshot.docs.isEmpty) return [];
-
-    List<Future<Task?>> taskFutures = [];
-
-    // 2. For each joined workspace, get the assigned tasks
-    for (var userWorkspaceDoc in joinedWorkspacesSnapshot.docs) {
-      final workspaceId = userWorkspaceDoc.id;
-      final assignedTasksRef = userWorkspaceDoc.reference.collection('AssignedTasks');
-      final assignedTasksSnapshot = await assignedTasksRef.get();
-      
-      // Get the full workspace data to pass its name to the Task model
-      final workspaceDataDoc = await _firestore.collection('Workspaces').doc(workspaceId).get();
-      if (!workspaceDataDoc.exists) continue;
-      final workspace = Workspace.fromFirestore(workspaceDataDoc);
-
-      // 3. For each assigned task ID, create a future to fetch its full data
-      for (var assignedTaskDoc in assignedTasksSnapshot.docs) {
-        final taskId = assignedTaskDoc.id;
-        final taskFuture = _firestore.collection('Workspaces').doc(workspaceId).collection('Tasks').doc(taskId).get()
-          .then((taskDoc) {
-            if (taskDoc.exists) {
-              return Task.fromFirestore(taskDoc, workspaceName: workspace.name);
-            }
-            return null;
-          });
-        taskFutures.add(taskFuture);
+    String? sourceColumnName;
+    // Find which column the task is currently in.
+    columnTasks.forEach((columnName, taskList) {
+      if (taskList.any((t) => t.id == task.id)) {
+        sourceColumnName = columnName;
       }
+    });
+
+    if (sourceColumnName == null) {
+      // This means the task was dragged from the grid and dropped back onto the grid. Do nothing.
+      return;
     }
 
-    // 4. Wait for all task fetches to complete in parallel
-    final results = await Future.wait(taskFutures);
-    // Filter out any nulls that occurred if a task was deleted but the reference remained
-    return results.where((task) => task != null).cast<Task>().toList();
+    // --- UI Update First ---
+    columnTasks[sourceColumnName]!.removeWhere((t) => t.id == task.id);
+    allTasks.add(task);
+
+    // --- Persist the Change in Firestore ---
+    try {
+      final columnDocRef = _userDbRef!.collection("Checkboxes").doc(sourceColumnName!);
+      // Atomically remove the task's ID from the 'taskIds' array.
+      await columnDocRef.update({
+        'taskIds': FieldValue.arrayRemove([task.id])
+      });
+    } catch (e) {
+      Get.snackbar("Error", "Could not move task. Reverting.");
+      // --- Revert UI on Failure ---
+      allTasks.removeWhere((t) => t.id == task.id);
+      columnTasks[sourceColumnName]!.add(task);
+    }
   }
-  
-  // --- TAB MANAGEMENT ---
+
+  // --- Other Methods (Tab management, other data fetching) ---
+  //Future<List<Task>> _fetchAssignedTasks() async { /* ... unchanged ... */ }
+
   void selectTab(int index) {
     selectedTabIndex.value = index;
   }
@@ -101,63 +174,30 @@ class ClipboardController extends GetxController {
   void addTab() {
     final newTabName = 'Tasks${openTabs.length + 1}';
     openTabs.add(newTabName);
-    selectedTabIndex.value = openTabs.length - 1; // Select the new tab
+    columnTasks[newTabName] = <Task>[].obs;
+    selectedTabIndex.value = openTabs.length - 1;
+    // Note: The new tab document in Firestore will be created automatically
+    // the first time a task is dropped into it.
   }
 
   void closeTab(int index) {
+    if (_userDbRef == null) return;
+    
+    final tabName = openTabs[index];
+    // Move all tasks from the closing tab back to the main grid
+    if (columnTasks.containsKey(tabName)) {
+      allTasks.addAll(columnTasks[tabName]!);
+      columnTasks.remove(tabName);
+    }
+    
     openTabs.removeAt(index);
-    // Adjust selected index to prevent errors
     if (selectedTabIndex.value >= index && selectedTabIndex.value > 0) {
       selectedTabIndex.value--;
     } else if (openTabs.isEmpty) {
-      selectedTabIndex.value = -1; // No tabs left
-    }
-  }
-
-  /// Handles moving a task FROM the main grid INTO a side column.
-  void handleTaskDropOnColumn(Task task, String columnName) {
-    // 1. Remove the task from the main grid's source list.
-    allTasks.removeWhere((t) => t.id == task.id);
-    
-    // 2. Add the task to the target column's list.
-    if (columnTasks.containsKey(columnName)) {
-      columnTasks[columnName]!.add(task);
-    } else {
-      // This is a safety net in case the column list wasn't initialized
-      columnTasks[columnName] = <Task>[task].obs;
+      selectedTabIndex.value = -1;
     }
 
-    // 3. Persist the change in Firestore (optional, depends on your schema).
-    // This is where you might update a "status" or "category" field on the task.
-    // For now, we'll just show a snackbar.
-    Get.snackbar(
-      "Task Assigned",
-      "'${task.name}' moved to column '$columnName'.",
-      snackPosition: SnackPosition.BOTTOM,
-    );
-  }
-
-  /// Handles moving a task FROM a side column BACK to the main grid.
-  void handleTaskDropOnGrid(Task task) {
-    bool taskWasFoundAndMoved = false;
-
-    // 1. Find which column the task is currently in and remove it.
-    columnTasks.forEach((columnName, taskList) {
-      int taskIndex = taskList.indexWhere((t) => t.id == task.id);
-      if (taskIndex != -1) {
-        taskList.removeAt(taskIndex);
-        taskWasFoundAndMoved = true;
-      }
-    });
-
-    // 2. If the task was found and removed, add it back to the main grid's list.
-    if (taskWasFoundAndMoved) {
-      allTasks.add(task);
-      Get.snackbar(
-        "Task Unassigned",
-        "'${task.name}' moved back to the main grid.",
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    }
+    // Delete the document from Firestore
+    _userDbRef!.collection("Checkboxes").doc(tabName).delete();
   }
 }

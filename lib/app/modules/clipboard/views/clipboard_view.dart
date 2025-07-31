@@ -116,7 +116,7 @@ class ClipboardScreen extends GetView<ClipboardController> {
       // Using your GPColumn as the content
       child: GPColumn<Task>(
         onAccept: (task) {
-          return controller.handleTaskDropOnColumn(task, tabName);
+          controller.handleTaskDropOnColumn(task, tabName);
         },
         header: Padding(
           padding: const EdgeInsets.all(8.0),
