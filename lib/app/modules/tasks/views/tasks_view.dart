@@ -122,7 +122,23 @@ class TasksPage extends GetView<TasksController> {
               // --- MAIN UI RENDERED FROM REFINED HELPER METHODS ---
               return ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: maxHeight),
-                child: SingleChildScrollView(
+                child: Stack(
+                  children: [
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: 32,
+                        bottom: 16.0,
+                      ),
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text("Add Column"),
+                        onPressed: () => _showAddColumnDialog(context),
+                      ),
+                    ),
+                  ),
+                  SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
@@ -150,7 +166,7 @@ class TasksPage extends GetView<TasksController> {
                     }).toList(),
                   ),
                 ),
-              );
+              ]));
             }),
           ],
         ),
