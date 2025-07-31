@@ -11,6 +11,8 @@ import '../modules/home/bindings/home_binding.dart';
 import '../modules/home/views/home_view.dart';
 import '../modules/clipboard/bindings/clipboard_binding.dart';
 import '../modules/clipboard/views/clipboard_view.dart';
+import '../modules/logs/bindings/logs_binding.dart';
+import '../modules/logs/views/logs_screen.dart';
 import '../modules/splash_screen.dart';
 
 part 'app_routes.dart'; // Connected
@@ -50,6 +52,11 @@ class AppPages {
       name: _Paths.TEAM,
       page: () => TasksPage(),
       binding: TasksBinding(),
+    ),
+    GetPage(
+      name: _Paths.LOGS,
+      page: () => const LogsScreen(),
+      binding: LogsBinding(),
     ),
     GetPage(
       name: _Paths.SPLASH,

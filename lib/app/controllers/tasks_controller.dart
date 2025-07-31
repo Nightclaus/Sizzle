@@ -25,7 +25,6 @@ class TasksController extends GetxController {
   final _uuid = const Uuid();
   final _root = FirebaseFirestore.instance;
 
-  // This is no longer needed as the getter is more robust
   late String? workspaceId;
 
   // --- CONSTRUCTOR ---
