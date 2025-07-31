@@ -47,7 +47,7 @@ class TasksPage extends GetView<TasksController> {
       onSubmit: (formData) {
         final String newTitle = (formData['title'] as String?)?.trim() ?? '';
         if (isEditMode) {
-          controller.addColumn(existingColumn.id, newTitle);
+          controller.addColumn(newTitle, existingColumn.id);
         } else {
           controller.addColumn(newTitle);
         }

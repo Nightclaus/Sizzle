@@ -24,6 +24,8 @@ class TasksController extends GetxController {
   final _uuid = const Uuid();
   final _root = FirebaseFirestore.instance;
 
+  late String? workspaceId;
+
   // --- CONSTRUCTOR ---
   TasksController({required this.isWorkspaceMode});
 
@@ -33,7 +35,7 @@ class TasksController extends GetxController {
   /// based on the controller's mode. Returns null if prerequisites are not met.
   CollectionReference<Map<String, dynamic>>? get columnsDbRef {
     if (isWorkspaceMode) {
-      final workspaceId = _workspaceService.selectedWorkspace.value?.id;
+      workspaceId = _workspaceService.selectedWorkspace.value?.id ?? null;
       if (workspaceId == null) return null; // No workspace selected
       return _root.collection('Workspaces').doc(workspaceId).collection('Columns');
     } else {
@@ -127,21 +129,38 @@ class TasksController extends GetxController {
     // Add to Firestore
     await columnsDbRef!.doc(newColumnId).set({"name": newColumn.title});
     // Add to local state for immediate UI update
+    columns.removeWhere((column) => column.id == uid); // Attempts to clear
     columns.add(newColumn);
   }
 
-  /// Deletes a column from the correct Firestore location.
-  void deleteColumn(String columnId) async {
-    if (columnsDbRef == null) return;
-    
-    // Delete from Firestore
-    await columnsDbRef!.doc(columnId).delete();
-    // Delete from local state
-    columns.removeWhere((col) => col.id == columnId);
-    
-    // Note: This does not delete the tasks within the column.
-    // A more robust solution would use a batch write or a Cloud Function.
+  Future<void> deleteColumn(String columnId) async {
+  // Use the dynamic getters. If they are null, something is wrong, so we abort.
+  if (columnsDbRef == null || tasksDbRef == null) return;
+  
+  debugPrint("DELETING COLUMN: $columnId");
+  final batch = _root.batch();
+
+  // 1. Mark the column document for deletion.
+  final columnRef = columnsDbRef!.doc(columnId);
+  batch.delete(columnRef);
+
+  // 2. Find all tasks that belong to this column using the correct path.
+  //    The 'tasksDbRef' getter automatically points to either the user's or the workspace's tasks.
+  final tasksQuery = await tasksDbRef!
+      .where('parentId', isEqualTo: columnId)
+      .get();
+      
+  // 3. Mark each of those tasks for deletion.
+  for (var doc in tasksQuery.docs) {
+    batch.delete(doc.reference);
   }
+
+  // 4. Commit all deletion operations in a single atomic transaction.
+  await batch.commit();
+
+  // 5. Update the local UI state *after* the database operation succeeds.
+  columns.removeWhere((col) => col.id == columnId);
+}
 
   /// Adds a new task to the correct Firestore location.
   Future<void> addTask(String columnId, Task task) async {
