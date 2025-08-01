@@ -152,7 +152,6 @@ class WorkspacesController extends GetxController {
   }
 
   try {
-    // --- NO MORE PLACEHOLDER WRITE ---
     // We can directly query the collection. If it doesn't exist, Firestore
     // will simply return an empty snapshot, which is not an error.
     final userWorkspacesSnapshot = await _firestore
