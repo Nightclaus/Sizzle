@@ -4,7 +4,6 @@ import 'package:intl/intl.dart'; // For formatting dates
 import 'package:sizzle/app/helpers/nav_bar.dart';
 import '../../../controllers/log_controller.dart';
 import '../../../models/log_entry_model.dart';
-import '../../../helpers/nav_bar.dart';
 
 class LogsScreen extends GetView<LogsController> {
   const LogsScreen({Key? key}) : super(key: key);

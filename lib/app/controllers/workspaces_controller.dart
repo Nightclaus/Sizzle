@@ -144,24 +144,47 @@ class WorkspacesController extends GetxController {
     }
   }
 
-  // This method is unchanged
   Future<void> fetchJoinedWorkspaces() async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
-    
-    final userWorkspacesDoc = await _firestore
-    .collection('UserData')
-    .doc(userId)
-    .collection('JoinedWorkspaces')
-    .get();
-
-    final List<String> workspaceIds = userWorkspacesDoc.docs.map((doc) => doc.id).toList();
-
-    final querySnapshot = await _firestore.collection('Workspaces').where(FieldPath.documentId, whereIn: workspaceIds).get();
-    
-    joinedWorkspaces.value = querySnapshot.docs.map((doc) => Workspace.fromFirestore(doc)).toList();
+  final userId = _auth.currentUser?.uid;
+  if (userId == null) {
+    joinedWorkspaces.clear();
+    return;
   }
 
+  try {
+    // --- NO MORE PLACEHOLDER WRITE ---
+    // We can directly query the collection. If it doesn't exist, Firestore
+    // will simply return an empty snapshot, which is not an error.
+    final userWorkspacesSnapshot = await _firestore
+        .collection('UserData')
+        .doc(userId)
+        .collection('JoinedWorkspaces')
+        .get();
+
+    // The rest of the logic can be simplified as we no longer need to filter out a placeholder.
+    final List<String> workspaceIds = userWorkspacesSnapshot.docs
+        .map((doc) => doc.id)
+        .toList();
+
+    if (workspaceIds.isEmpty) {
+      joinedWorkspaces.value = [];
+      return;
+    }
+    
+    final querySnapshot = await _firestore
+        .collection('Workspaces')
+        .where(FieldPath.documentId, whereIn: workspaceIds)
+        .get();
+    
+    joinedWorkspaces.value = querySnapshot.docs.map((doc) => Workspace.fromFirestore(doc)).toList();
+
+  } catch (e) {
+    // A try/catch is still essential for catching real errors, like network issues.
+    Get.snackbar("Error", "Could not load your workspaces.");
+    print("Fetch Joined Workspaces Error: $e");
+    joinedWorkspaces.clear();
+  }
+}
   Future<void> joinWorkspace(String joinCode) async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) {
