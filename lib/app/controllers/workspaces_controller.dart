@@ -1,110 +1,370 @@
-import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/user_profile_data.dart';
-import '../models/workspace_model.dart';
-import 'package:flutter/material.dart';
-import '../../general_purpose_widgets/general_purpose_widgets.dart';
-
-import '../helpers/workspace_service.dart';
-import '../helpers/logging_service.dart';
-
-import '../routes/app_pages.dart';
 import 'dart:math';
 
-class WorkspacesController extends GetxController {
-  final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
-  String? get currentUserId => _auth.currentUser?.uid;
+import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
+import '../models/user_profile_data.dart';
+import '../models/workspace_model.dart';
+import '../models/task_model.dart';
+import '../../general_purpose_widgets.dart';
+import '../helpers/logging_service.dart';
+import '../helpers/workspace_service.dart';
+import '../routes/app_pages.dart';
+import 'base_firebase_controller.dart';
 
-  // --- OBSERVABLES ---
-  var isLoading = false.obs;
+class WorkspacesController extends BaseFirebaseController {
+  String? get currentUserId => userId;
+
+  final WorkspaceService _workspaceService = Get.find<WorkspaceService>();
+
   Rx<UserProfileData?> userProfile = Rx(null);
   RxList<Workspace> joinedWorkspaces = <Workspace>[].obs;
-  
-  // Dummy data for notifications
-  RxList<String> notifications = <String>["- Join a workspace"].obs;
 
-  // This will hold the join code of the most recently created workspace.
+  /// Every task assigned to the current user, across every workspace
+  /// they've joined. Replaces the old Clipboard screen: since tasks only
+  /// exist inside workspaces now, "my tasks" is just this list.
+  RxList<Task> notifications = <Task>[].obs;
+
   var latestJoinCode = ''.obs;
 
   @override
   void onInit() {
     super.onInit();
     fetchInitialData();
-
-    // This worker listens to changes in 'latestJoinCode'.
     ever(latestJoinCode, (String code) {
-      if (code.isNotEmpty) {
-        _showJoinCodePopup(code);
-      }
+      if (code.isNotEmpty) _showJoinCodePopup(code);
     });
   }
 
-  final WorkspaceService _workspaceService = Get.find<WorkspaceService>();
-
-  // ... (all your existing properties and methods are unchanged)
-
-  /// This method is called when a user taps a workspace card in the UI.
+  /// Called when a workspace card is tapped: makes it the active workspace
+  /// and navigates to its task board. (No more `arguments: true` — every
+  /// workspace's board is the same "workspace mode" now.)
   void onWorkspaceSelected(Workspace workspace) {
-    // 1. Tell the global service which workspace is now active.
     _workspaceService.selectWorkspace(workspace);
+    Get.toNamed(Routes.TEAM);
+  }
 
-    // 2. Navigate to the screen that displays the tasks for that workspace.
-    Get.toNamed(Routes.TEAM, arguments: true); // Go to tasks but in Workspace Mode
+  Future<void> fetchInitialData() async {
+    await runSafely(() async {
+      await fetchUserProfile();
+      await fetchJoinedWorkspacesAndNotifications();
+    });
+  }
+
+  Future<void> fetchUserProfile() async {
+    if (userId == null) return;
+    final doc = await firestore.collection("UserData").doc(userId).collection("ProfileData").doc("main").get();
+    if (doc.exists) userProfile.value = UserProfileData.fromMap(doc.data()!);
+  }
+
+  Future<void> fetchJoinedWorkspaces() async {
+    if (userId == null) {
+      joinedWorkspaces.clear();
+      return;
+    }
+
+    final result = await runSafely(() async {
+      final userWorkspacesSnapshot =
+          await firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').get();
+      final workspaceIds = userWorkspacesSnapshot.docs.map((d) => d.id).toList();
+      if (workspaceIds.isEmpty) return <Workspace>[];
+
+      final querySnapshot =
+          await firestore.collection('Workspaces').where(FieldPath.documentId, whereIn: workspaceIds).get();
+      return querySnapshot.docs.map(Workspace.fromFirestore).toList();
+    }, errorMessage: "Could not load your workspaces.", manageLoading: false);
+
+    joinedWorkspaces.value = result ?? [];
+  }
+
+  /// Refetches the workspace list and the notification bar together —
+  /// membership changes (join/leave/delete) always change both.
+  Future<void> fetchJoinedWorkspacesAndNotifications() async {
+    await fetchJoinedWorkspaces();
+    await fetchNotifications();
+  }
+
+  /// Populates [notifications] with every task assigned to the current
+  /// user, found via a depth-first walk of the user's own data:
+  ///   user -> each joined workspace (branch) -> that workspace's Tasks
+  ///   (leaves) -> keep only tasks whose parentId is this user.
+  /// Each workspace branch is fully explored before moving to the next.
+  Future<void> fetchNotifications() async {
+    if (userId == null) {
+      notifications.clear();
+      return;
+    }
+
+    final result = await runSafely(
+      () => _collectAssignedTasksDfs(userId!),
+      errorMessage: "Could not load your tasks.",
+      manageLoading: false,
+    );
+    notifications.value = result ?? [];
+  }
+
+  Future<List<Task>> _collectAssignedTasksDfs(String uid) async {
+    final joined = await firestore.collection('UserData').doc(uid).collection('JoinedWorkspaces').get();
+    if (joined.docs.isEmpty) return [];
+
+    final assigned = <Task>[];
+
+    // Visit one workspace branch at a time (depth-first), rather than
+    // fanning every workspace out in parallel.
+    for (final workspaceRefDoc in joined.docs) {
+      final wsId = workspaceRefDoc.id;
+
+      final tasksInWorkspace = await fetchWhere(
+        firestore.collection('Workspaces').doc(wsId).collection('Tasks'),
+        'parentId',
+        uid,
+        (doc) => doc,
+      );
+      if (tasksInWorkspace.isEmpty) continue;
+
+      final workspaceMeta = await firestore.collection('Workspaces').doc(wsId).get();
+      final workspaceName = workspaceMeta.data()?['name'] ?? 'Workspace';
+
+      for (final doc in tasksInWorkspace) {
+        assigned.add(Task.fromFirestore(doc, workspaceName: workspaceName));
+      }
+    }
+
+    return assigned;
   }
 
   Future<void> createWorkspace(String name) async {
-    final userId = _auth.currentUser?.uid;
     if (userId == null) {
       Get.snackbar("Error", "You must be logged in to create a workspace.");
       return;
     }
-
     latestJoinCode.value = '';
-    isLoading.value = true;
 
-    try {
-      final newWorkspaceRef = _firestore.collection('Workspaces').doc();
+    await runSafely(() async {
+      final newWorkspaceRef = firestore.collection('Workspaces').doc();
       final joinCode = _generateJoinCode();
-      
-      // We add the 'members' field during workspace creation.
+
       await newWorkspaceRef.set({
         'name': name,
         'join_code': joinCode,
         'ownerId': userId,
         'createdAt': FieldValue.serverTimestamp(),
-        // The creator is automatically the first member.
         'members': [userId],
       });
 
-      // --- ADD LOGGING ---
       LoggingService.logAction(
         workspaceId: newWorkspaceRef.id,
-        userId: userId,
+        userId: userId!,
         actionMessage: "created workspace '$name'",
       );
-      // --- END LOGGING ---
 
-      final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc(newWorkspaceRef.id);
-      await userWorkspacesRef.set({
-        'JoinCode': joinCode,
-      });
+      await firestore
+          .collection('UserData')
+          .doc(userId)
+          .collection('JoinedWorkspaces')
+          .doc(newWorkspaceRef.id)
+          .set({'JoinCode': joinCode});
 
-      await fetchJoinedWorkspaces(); // Refresh the list
-      
-      // This part is unchanged: trigger the popup via the state variable.
+      await fetchJoinedWorkspacesAndNotifications();
       latestJoinCode.value = joinCode;
-
-    } catch (e) {
-      Get.snackbar("Error", "Could not create workspace.");
-    } finally {
-      isLoading.value = false;
-    }
+    }, errorMessage: "Could not create workspace.");
   }
 
-  // This method is unchanged
+  Future<void> joinWorkspace(String joinCode) async {
+    if (userId == null) {
+      Get.snackbar("Error", "You must be logged in to join a workspace.");
+      return;
+    }
+
+    await runSafely(() async {
+      final query =
+          await firestore.collection('Workspaces').where('join_code', isEqualTo: joinCode.trim()).limit(1).get();
+
+      if (query.docs.isEmpty) {
+        Get.snackbar("Error", "No workspace found with that code.", snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+
+      final workspaceDoc = query.docs.first;
+      final workspaceId = workspaceDoc.id;
+      final workspaceRef = firestore.collection('Workspaces').doc(workspaceId);
+
+      await workspaceRef.update({
+        'members': FieldValue.arrayUnion([userId]),
+      });
+
+      LoggingService.logAction(
+        workspaceId: workspaceId,
+        userId: userId!,
+        actionMessage: "joined workspace '${workspaceDoc['name']}'",
+      );
+
+      await firestore
+          .collection('UserData')
+          .doc(userId)
+          .collection('JoinedWorkspaces')
+          .doc(workspaceId)
+          .set({'JoinCode': joinCode});
+
+      await fetchJoinedWorkspacesAndNotifications();
+      Get.snackbar("Success", "You have joined the workspace!", snackPosition: SnackPosition.BOTTOM);
+    }, errorMessage: "Could not join workspace.");
+  }
+
+  void showEditWorkspaceNameDialog(Workspace workspace) {
+    GPFormDialog.show(
+      context: Get.context!,
+      title: "Edit Workspace Name",
+      fields: [
+        {'key': 'name', 'type': 'text', 'label': 'New Workspace Name', 'required': true},
+      ],
+      initialData: {'name': workspace.name},
+      submitButtonText: "Save Changes",
+      onSubmit: (formData) {
+        final newName = (formData['name'] as String?)?.trim() ?? '';
+        if (newName.isEmpty || newName == workspace.name) return;
+        _updateWorkspaceNameConfirmed(workspace.id, newName);
+      },
+    );
+  }
+
+  Future<void> confirmAndLeaveWorkspace(String workspaceId, String workspaceName) async {
+    GPPopup.show(
+      title: "Confirm Leave",
+      content: _confirmationContent(
+        prefix: "Are you sure you want to leave the '",
+        name: workspaceName,
+        suffix: "' workspace? You will lose access unless you are invited back.",
+        confirmLabel: "Leave",
+        confirmColor: Colors.orange[800],
+        onConfirm: () => _leaveWorkspaceConfirmed(workspaceId),
+      ),
+    );
+  }
+
+  /// Removes the user's reference from a workspace they do not own.
+  Future<void> _leaveWorkspaceConfirmed(String workspaceId) async {
+    if (userId == null) return;
+
+    await runSafely(() async {
+      final workspaceRef = firestore.collection('Workspaces').doc(workspaceId);
+      final workspaceDoc = await workspaceRef.get();
+      if (!workspaceDoc.exists) throw Exception("Workspace not found.");
+
+      // Owners cannot "leave"; they must delete.
+      if (workspaceDoc.data()?['ownerId'] == userId) {
+        Get.snackbar(
+          "Action Not Allowed",
+          "Owners cannot leave a workspace. You must delete it instead.",
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      final batch = firestore.batch();
+      batch.update(workspaceRef, {
+        'members': FieldValue.arrayRemove([userId])
+      });
+      final userListRef = firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc('list');
+      batch.update(userListRef, {
+        'ids': FieldValue.arrayRemove([workspaceId])
+      });
+      await batch.commit();
+
+      joinedWorkspaces.removeWhere((ws) => ws.id == workspaceId);
+      await fetchNotifications(); // this workspace's tasks are no longer "mine"
+      Get.snackbar("Success", "You have left the workspace.", snackPosition: SnackPosition.BOTTOM);
+    }, errorMessage: "Could not leave workspace.");
+  }
+
+  /// Updates the workspace name in Firestore after verifying ownership.
+  Future<void> _updateWorkspaceNameConfirmed(String workspaceId, String newName) async {
+    if (userId == null) return;
+
+    await runSafely(() async {
+      final workspaceRef = firestore.collection('Workspaces').doc(workspaceId);
+      final workspaceDoc = await workspaceRef.get();
+
+      if (workspaceDoc.data()?['ownerId'] != userId) {
+        Get.snackbar("Permission Denied", "Only the workspace owner can change the name.",
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+
+      await workspaceRef.update({'name': newName});
+
+      final index = joinedWorkspaces.indexWhere((ws) => ws.id == workspaceId);
+      if (index != -1) {
+        joinedWorkspaces[index].name = newName;
+        joinedWorkspaces.refresh();
+      }
+
+      Get.snackbar("Success", "Workspace name updated.", snackPosition: SnackPosition.BOTTOM);
+    }, errorMessage: "Could not update name.");
+  }
+
+  Future<void> _deleteWorkspaceConfirmed(String workspaceId) async {
+    if (userId == null) {
+      Get.snackbar("Error", "You must be logged in.");
+      return;
+    }
+
+    await runSafely(() async {
+      final workspaceRef = firestore.collection('Workspaces').doc(workspaceId);
+      final workspaceDoc = await workspaceRef.get();
+      if (!workspaceDoc.exists) throw Exception("Workspace not found.");
+
+      if (workspaceDoc.data()?['ownerId'] != userId) {
+        Get.snackbar("Permission Denied", "Only the workspace owner can delete it.",
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+
+      final batch = firestore.batch();
+
+      final memberIds = List<String>.from(workspaceDoc.data()?['members'] ?? []);
+      for (final memberId in memberIds) {
+        final memberListRef =
+            firestore.collection('UserData').doc(memberId).collection('JoinedWorkspaces').doc('list');
+        batch.update(memberListRef, {
+          'ids': FieldValue.arrayRemove([workspaceId])
+        });
+      }
+      batch.delete(workspaceRef);
+
+      // Subcollections per the current schema: Columns, Tasks, Logs, Records.
+      for (final sub in ['Tasks', 'Columns', 'Logs', 'Records']) {
+        final snapshot = await workspaceRef.collection(sub).get();
+        for (final doc in snapshot.docs) {
+          await doc.reference.delete();
+        }
+      }
+
+      await batch.commit();
+
+      joinedWorkspaces.removeWhere((ws) => ws.id == workspaceId);
+      await fetchNotifications(); // drop this workspace's tasks from the bar
+      Get.snackbar("Success", "Workspace has been deleted.", snackPosition: SnackPosition.BOTTOM);
+    }, errorMessage: "Could not delete workspace.");
+  }
+
+  Future<void> confirmAndDeleteWorkspace(String workspaceId, String workspaceName) async {
+    Get.dialog(
+      AlertDialog(
+        title: const Text("Confirm Deletion"),
+        content: _confirmationContent(
+          prefix: "Are you sure you want to permanently delete the '",
+          name: workspaceName,
+          suffix: "' workspace? This will remove it for all members and cannot be undone.",
+          confirmLabel: "Delete",
+          confirmColor: Colors.red,
+          onConfirm: () => _deleteWorkspaceConfirmed(workspaceId),
+        ),
+      ),
+    );
+  }
+
   void _showJoinCodePopup(String code) {
     GPPopup.show(
       title: "Workspace Created!",
@@ -115,417 +375,51 @@ class WorkspacesController extends GetxController {
           const Text("Share this code with others to join:"),
           const SizedBox(height: 20),
           Center(
-            child: SelectableText(
-              code,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
+            child: SelectableText(code, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  // This method is unchanged
-  Future<void> fetchInitialData() async {
-    isLoading.value = true;
-    await fetchUserProfile();
-    await fetchJoinedWorkspaces();
-    isLoading.value = false;
-  }
-
-  // This method is unchanged
-  Future<void> fetchUserProfile() async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
-
-    final doc = await _firestore.collection("UserData").doc(userId).collection("ProfileData").doc("main").get();
-    if (doc.exists) {
-      userProfile.value = UserProfileData.fromMap(doc.data()!);
-    }
-  }
-
-  Future<void> fetchJoinedWorkspaces() async {
-  final userId = _auth.currentUser?.uid;
-  if (userId == null) {
-    joinedWorkspaces.clear();
-    return;
-  }
-
-  try {
-    // We can directly query the collection. If it doesn't exist, Firestore
-    // will simply return an empty snapshot, which is not an error.
-    final userWorkspacesSnapshot = await _firestore
-        .collection('UserData')
-        .doc(userId)
-        .collection('JoinedWorkspaces')
-        .get();
-
-    // The rest of the logic can be simplified as we no longer need to filter out a placeholder.
-    final List<String> workspaceIds = userWorkspacesSnapshot.docs
-        .map((doc) => doc.id)
-        .toList();
-
-    if (workspaceIds.isEmpty) {
-      joinedWorkspaces.value = [];
-      return;
-    }
-    
-    final querySnapshot = await _firestore
-        .collection('Workspaces')
-        .where(FieldPath.documentId, whereIn: workspaceIds)
-        .get();
-    
-    joinedWorkspaces.value = querySnapshot.docs.map((doc) => Workspace.fromFirestore(doc)).toList();
-
-  } catch (e) {
-    // A try/catch is still essential for catching real errors, like network issues.
-    Get.snackbar("Error", "Could not load your workspaces.");
-    print("Fetch Joined Workspaces Error: $e");
-    joinedWorkspaces.clear();
-  }
-}
-  Future<void> joinWorkspace(String joinCode) async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) {
-      Get.snackbar("Error", "You must be logged in to join a workspace.");
-      return;
-    }
-
-    isLoading.value = true;
-    try {
-      final query = await _firestore.collection('Workspaces').where('join_code', isEqualTo: joinCode.trim()).limit(1).get();
-
-      if (query.docs.isEmpty) {
-        Get.snackbar("Error", "No workspace found with that code.", snackPosition: SnackPosition.BOTTOM);
-        isLoading.value = false; // Stop loading indicator
-        return;
-      }
-
-      final workspaceDoc = query.docs.first;
-      final workspaceId = workspaceDoc.id;
-
-      // Get a reference to the specific workspace document.
-      final workspaceRef = _firestore.collection('Workspaces').doc(workspaceId);
-
-      // Atomically add the current user's UID to the 'members' array.
-      // arrayUnion prevents duplicates if the user is already a member.
-      await workspaceRef.update({
-        'members': FieldValue.arrayUnion([userId]),
-      });
-      
-      // --- ADD LOGGING ---
-      LoggingService.logAction(
-        workspaceId: workspaceId,
-        userId: userId,
-        actionMessage: "joined workspace '${workspaceDoc['name']}'",
-      );
-      // --- END LOGGING ---
-
-      final userWorkspacesRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc(workspaceId);
-      await userWorkspacesRef.set({
-        'JoinCode': joinCode,
-      });
-
-      await fetchJoinedWorkspaces(); // Refresh the list
-      Get.snackbar("Success", "You have joined the workspace!", snackPosition: SnackPosition.BOTTOM);
-
-    } catch(e) {
-      Get.snackbar("Error", "Could not join workspace.", snackPosition: SnackPosition.BOTTOM);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  void showEditWorkspaceNameDialog(Workspace workspace) {
-    // We leverage the GPFormDialog for consistency.
-    GPFormDialog.show(
-      context: Get.context!, // Use Get's context safely
-      title: "Edit Workspace Name",
-      fields: [
-        {
-          'key': 'name',
-          'type': 'text',
-          'label': 'New Workspace Name',
-          'required': true,
-        },
-      ],
-      // Pre-fill the form with the current name for a better user experience.
-      initialData: {
-        'name': workspace.name,
-      },
-      submitButtonText: "Save Changes",
-      onSubmit: (formData) {
-        final newName = (formData['name'] as String?)?.trim() ?? '';
-
-        // Don't do anything if the name is empty or unchanged.
-        if (newName.isEmpty || newName == workspace.name) {
-          return;
-        }
-
-        // Call the private method to handle the update logic.
-        _updateWorkspaceNameConfirmed(workspace.id, newName);
-      },
-    );
-  }
-
-   Future<void> confirmAndLeaveWorkspace(String workspaceId, String workspaceName) async {
-    GPPopup.show(
-      title: "Confirm Leave",
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text.rich(
-            TextSpan(
-              text: "Are you sure you want to leave the '",
-              children: [
-                TextSpan(
-                  text: workspaceName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const TextSpan(text: "' workspace? You will lose access unless you are invited back."),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                child: const Text("Cancel"),
-                onPressed: () => Get.back(),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: Colors.orange[800]),
-                child: const Text("Leave"),
-                onPressed: () {
-                  Get.back(); // Close the dialog first
-                  _leaveWorkspaceConfirmed(workspaceId);
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-  // --- NEW: Private method for the leave logic ---
-  /// Removes the user's reference from a workspace they do not own.
-  Future<void> _leaveWorkspaceConfirmed(String workspaceId) async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
-
-    isLoading.value = true;
-    try {
-      final workspaceRef = _firestore.collection('Workspaces').doc(workspaceId);
-      final workspaceDoc = await workspaceRef.get();
-
-      if (!workspaceDoc.exists) throw Exception("Workspace not found.");
-
-      // --- CRITICAL PERMISSION CHECK ---
-      // An owner cannot "leave"; they must delete.
-      if (workspaceDoc.data()?['ownerId'] == userId) {
-        Get.snackbar(
-          "Action Not Allowed", 
-          "Owners cannot leave a workspace. You must delete it instead.",
-          snackPosition: SnackPosition.BOTTOM,
-        );
-        isLoading.value = false;
-        return;
-      }
-
-      // Use a batch write to ensure both updates succeed or neither do.
-      final batch = _firestore.batch();
-
-      // Operation 1: Remove user from the main workspace's 'members' list.
-      batch.update(workspaceRef, {
-        'members': FieldValue.arrayRemove([userId])
-      });
-
-      // Operation 2: Remove the workspace ID from the user's personal list.
-      final userListRef = _firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc('list');
-      batch.update(userListRef, {
-        'ids': FieldValue.arrayRemove([workspaceId])
-      });
-
-      // Commit both operations atomically.
-      await batch.commit();
-
-      // Update the local UI state for an instant response.
-      joinedWorkspaces.removeWhere((ws) => ws.id == workspaceId);
-      Get.snackbar("Success", "You have left the workspace.", snackPosition: SnackPosition.BOTTOM);
-
-    } catch (e) {
-      Get.snackbar("Error", "Could not leave workspace: ${e.toString()}", snackPosition: SnackPosition.BOTTOM);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // --- NEW: Private method for the actual update logic ---
-  /// Updates the workspace name in Firestore after verifying ownership.
-  Future<void> _updateWorkspaceNameConfirmed(String workspaceId, String newName) async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
-
-    isLoading.value = true;
-    try {
-      final workspaceRef = _firestore.collection('Workspaces').doc(workspaceId);
-      final workspaceDoc = await workspaceRef.get();
-
-      // Permission Check: Only the owner can edit the name.
-      if (workspaceDoc.data()?['ownerId'] != userId) {
-        Get.snackbar("Permission Denied", "Only the workspace owner can change the name.", snackPosition: SnackPosition.BOTTOM);
-        isLoading.value = false;
-        return;
-      }
-
-      // Perform the update in Firestore.
-      await workspaceRef.update({'name': newName});
-
-      // --- Update the local UI state ---
-      final index = joinedWorkspaces.indexWhere((ws) => ws.id == workspaceId);
-      if (index != -1) {
-        // To make GetX recognize a change in an object's property within an RxList,
-        // we update the property and then call refresh() on the list.
-        joinedWorkspaces[index].name = newName;
-        joinedWorkspaces.refresh();
-      }
-
-      Get.snackbar("Success", "Workspace name updated.", snackPosition: SnackPosition.BOTTOM);
-
-    } catch (e) {
-      Get.snackbar("Error", "Could not update name: ${e.toString()}", snackPosition: SnackPosition.BOTTOM);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  Future<void> _deleteWorkspaceConfirmed(String workspaceId) async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) {
-      Get.snackbar("Error", "You must be logged in.");
-      return;
-    }
-
-    isLoading.value = true;
-    try {
-      // Step 1: Get the workspace document to verify ownership and get member list
-      final workspaceRef = _firestore.collection('Workspaces').doc(workspaceId);
-      final workspaceDoc = await workspaceRef.get();
-
-      if (!workspaceDoc.exists) {
-        throw Exception("Workspace not found.");
-      }
-
-      // Step 2: Verify the current user is the owner
-      if (workspaceDoc.data()?['ownerId'] != userId) {
-        Get.snackbar("Permission Denied", "Only the workspace owner can delete it.", snackPosition: SnackPosition.BOTTOM);
-        isLoading.value = false;
-        return;
-      }
-
-      // --- Start a Batch Write for Atomic Deletion ---
-      final batch = _firestore.batch();
-
-      // Step 3: Remove the workspace ID from each member's personal list
-      final List<String> memberIds = List<String>.from(workspaceDoc.data()?['members'] ?? []);
-      
-      for (final memberId in memberIds) {
-        final memberListRef = _firestore.collection('UserData').doc(memberId).collection('JoinedWorkspaces').doc('list');
-        batch.update(memberListRef, {
-          'ids': FieldValue.arrayRemove([workspaceId])
-        });
-      }
-
-      // Step 4: Delete the main workspace document
-      batch.delete(workspaceRef);
-
-      // Step 4.1: Delete subcollections
-      // Delete tasks
-      final tasksRef = workspaceRef.collection('Tasks');
-      final tasksSnapshot = await tasksRef.get();
-      for (final doc in tasksSnapshot.docs) {
-        await doc.reference.delete();
-      }
-
-      // Delete Columns
-      final columnsRef = workspaceRef.collection('Columns');
-      final columnsSnapshot = await columnsRef.get();
-      for (final doc in columnsSnapshot.docs) {
-        await doc.reference.delete();
-      }
-
-      // Step 5: Commit all operations in the batch at once
-      await batch.commit();
-
-      // Step 6: Refresh the local UI state
-      joinedWorkspaces.removeWhere((ws) => ws.id == workspaceId);
-      Get.snackbar("Success", "Workspace has been deleted.", snackPosition: SnackPosition.BOTTOM);
-
-    } catch (e) {
-      Get.snackbar("Error", "Could not delete workspace: ${e.toString()}", snackPosition: SnackPosition.BOTTOM);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-
-  /// Shows a confirmation dialog before proceeding with workspace deletion.
-  Future<void> confirmAndDeleteWorkspace(String workspaceId, String workspaceName) async {
-    // We use the existing GPPopup system for a consistent look and feel.
-    Get.dialog(
-      AlertDialog(
-        // Set the title using a Text widget for proper styling.
-        title: Text("Confirm Deletion"),
-        // The content of the popup is a custom widget we build here.
-        content: Column(
-          mainAxisSize: MainAxisSize.min, // Use minimum space
-          crossAxisAlignment: CrossAxisAlignment.start,
+  /// Shared "prefix **name** suffix" confirmation body with Cancel/Confirm
+  /// buttons — used by both the leave-workspace and delete-workspace dialogs.
+  Widget _confirmationContent({
+    required String prefix,
+    required String name,
+    required String suffix,
+    required String confirmLabel,
+    required Color? confirmColor,
+    required VoidCallback onConfirm,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(TextSpan(
+          text: prefix,
           children: [
-            // Inform the user about the consequences of their action.
-            Text.rich(
-              TextSpan(
-                text: "Are you sure you want to permanently delete the '",
-                children: [
-                  TextSpan(
-                    text: workspaceName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const TextSpan(
-                    text: "' workspace? This will remove it for all members and cannot be undone.",
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            // A row for the action buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end, // Align buttons to the right
-              children: [
-                // The "Cancel" button simply closes the dialog.
-                TextButton(
-                  child: const Text("Cancel"),
-                  onPressed: () => Get.back(), // GetX's way to close a dialog
-                ),
-                const SizedBox(width: 8),
-                // The "Delete" button is styled to indicate a dangerous action.
-                TextButton(
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  child: const Text("Delete"),
-                  onPressed: () {
-                    // First, close the dialog.
-                    Get.back();
-                    // Then, call the actual deletion logic.
-                    _deleteWorkspaceConfirmed(workspaceId);
-                  },
-                ),
-              ],
+            TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            TextSpan(text: suffix),
+          ],
+        )),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(child: const Text("Cancel"), onPressed: () => Get.back()),
+            const SizedBox(width: 8),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: confirmColor),
+              child: Text(confirmLabel),
+              onPressed: () {
+                Get.back();
+                onConfirm();
+              },
             ),
           ],
         ),
-      )
+      ],
     );
   }
 

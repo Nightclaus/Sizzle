@@ -1,14 +1,12 @@
 // lib/app/routes/app_pages.dart
 
 import 'package:get/get.dart';
-import 'package:sizzle/app/modules/tasks/bindings/tasks_binding.dart';
-import 'package:sizzle/app/modules/tasks/views/tasks_view.dart';
+import 'package:sizzle/app/modules/tasks/tasks_binding.dart';
+import 'package:sizzle/app/modules/tasks/tasks_view.dart';
 import '../modules/auth/bindings/auth_binding.dart';
 import '../modules/auth/views/login_screen.dart';
-import '../modules/test/bindings/test_binding.dart';
-import '../modules/test/views/test_screen.dart';
-import '../modules/home/bindings/home_binding.dart';
-import '../modules/home/views/home_view.dart';
+import '../modules/home/home_binding.dart';
+import '../modules/home/workspace_view.dart';
 import '../modules/clipboard/bindings/clipboard_binding.dart';
 import '../modules/clipboard/views/clipboard_view.dart';
 import '../modules/logs/bindings/logs_binding.dart';
@@ -27,11 +25,6 @@ class AppPages {
       name: _Paths.LOGIN,
       page: () => LoginScreen(),
       binding: AuthBinding(),
-    ),
-    GetPage(
-      name: _Paths.TEST,
-      page: () => TestScreen(),
-      binding: TestBinding(),
     ),
     GetPage(
       name: _Paths.HOME,

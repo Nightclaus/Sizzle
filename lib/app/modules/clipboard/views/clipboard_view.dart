@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dotted_border/dotted_border.dart';
 import '../../../controllers/clipboard_controller.dart';
-import '../../../../general_purpose_widgets/general_purpose_widgets.dart';
+import '../../../../general_purpose_widgets.dart';
 import '../../../models/task_model.dart';
 import '../../../helpers/nav_bar.dart'; // SizzleNavBar()
 

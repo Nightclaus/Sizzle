@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // Make sure this path points to your actual GPFormDialog file
-import '../../../general_purpose_widgets/general_purpose_widgets.dart';
+import '../../general_purpose_widgets.dart';
 import '../models/user_profile_data.dart';
 
 // This is the callable function that shows our form.

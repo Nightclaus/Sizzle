@@ -1,7 +1,7 @@
 //import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/workspaces_controller.dart';
-import '../../general_purpose_widgets/general_purpose_widgets.dart';
+import '../../general_purpose_widgets.dart';
 
 /// Shows the initial dialog to choose between creating or joining a workspace.
 void showAddWorkspaceDialog() {

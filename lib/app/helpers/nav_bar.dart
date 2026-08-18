@@ -23,46 +23,22 @@ class SizzleNavBar extends StatelessWidget implements PreferredSizeWidget {
         children: [
           // Static brand text
           const Text(
-            "Sizzle /",
+            "Sizzle",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
           ),
           const SizedBox(width: 24),
-
-          // --- NAVIGATION BUTTONS ---
-
-          // 1. Workspaces Button (simple navigation)
           _buildNavButton(
             title: 'Workspaces',
             route: Routes.HOME,
             theme: theme,
           ),
 
-          // 2. Personal Tasks Button
-          // This button navigates to the TASKS route and passes 'false'
-          // to tell the TasksController to run in "Personal Mode".
           _buildNavButton(
-            title: 'My Tasks',
+            title: 'Tasks',
             route: Routes.TASKS,
             theme: theme,
-            // Provide a custom onPressed to pass arguments
-            onPressed: () => Get.toNamed(Routes.TASKS, arguments: false),
-          ),
-          
-          // 3. Clipboard Button (simple navigation)
-          _buildNavButton(
-            title: 'Clipboard',
-            route: Routes.CLIPBOARD,
-            theme: theme,
           ),
 
-          _buildNavButton(
-            title: 'Team',
-            route: Routes.TEAM,
-            theme: theme,
-            onPressed: () => Get.toNamed(Routes.TEAM, arguments: true),
-          ),
-
-          // 4. Farm Button
           // _buildNavButton(
           //   title: 'My Farm',
           //   route: Routes.FARM,
