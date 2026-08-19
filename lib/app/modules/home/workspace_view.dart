@@ -27,7 +27,7 @@ class HomeScreen extends GetView<WorkspacesController> {
 
   Widget _buildLeftPanel() {
     return Container(
-      width: 250,
+      width: 350,
       color: const Color(0xFF424242), // Dark Grey
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -94,7 +94,7 @@ class HomeScreen extends GetView<WorkspacesController> {
         ),
         decoration: BoxDecoration(
           color: const Color(0xFFE0E0E0), // Light Grey
-          borderRadius: BorderRadius.circular(12),
+          //borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

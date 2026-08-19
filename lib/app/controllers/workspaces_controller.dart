@@ -38,7 +38,6 @@ class WorkspacesController extends BaseFirebaseController {
   }
 
   /// Called when a workspace card is tapped: makes it the active workspace
-  /// and navigates to its task board. (No more `arguments: true` — every
   /// workspace's board is the same "workspace mode" now.)
   void onWorkspaceSelected(Workspace workspace) {
     _workspaceService.selectWorkspace(workspace);
@@ -243,7 +242,6 @@ class WorkspacesController extends BaseFirebaseController {
     );
   }
 
-  /// Removes the user's reference from a workspace they do not own.
   Future<void> _leaveWorkspaceConfirmed(String workspaceId) async {
     if (userId == null) return;
 
@@ -266,10 +264,15 @@ class WorkspacesController extends BaseFirebaseController {
       batch.update(workspaceRef, {
         'members': FieldValue.arrayRemove([userId])
       });
-      final userListRef = firestore.collection('UserData').doc(userId).collection('JoinedWorkspaces').doc('list');
-      batch.update(userListRef, {
-        'ids': FieldValue.arrayRemove([workspaceId])
-      });
+      
+      // Delete the workspace reference document for the leaving user
+      final userWorkspaceRef = firestore
+          .collection('UserData')
+          .doc(userId)
+          .collection('JoinedWorkspaces')
+          .doc(workspaceId); // target the specific workspace document ID
+      batch.delete(userWorkspaceRef);
+      
       await batch.commit();
 
       joinedWorkspaces.removeWhere((ws) => ws.id == workspaceId);
@@ -277,7 +280,6 @@ class WorkspacesController extends BaseFirebaseController {
       Get.snackbar("Success", "You have left the workspace.", snackPosition: SnackPosition.BOTTOM);
     }, errorMessage: "Could not leave workspace.");
   }
-
   /// Updates the workspace name in Firestore after verifying ownership.
   Future<void> _updateWorkspaceNameConfirmed(String workspaceId, String newName) async {
     if (userId == null) return;
@@ -323,14 +325,17 @@ class WorkspacesController extends BaseFirebaseController {
 
       final batch = firestore.batch();
 
+      // Deletes the individual workspace documents for each member
       final memberIds = List<String>.from(workspaceDoc.data()?['members'] ?? []);
       for (final memberId in memberIds) {
-        final memberListRef =
-            firestore.collection('UserData').doc(memberId).collection('JoinedWorkspaces').doc('list');
-        batch.update(memberListRef, {
-          'ids': FieldValue.arrayRemove([workspaceId])
-        });
+        final memberWorkspaceRef = firestore
+            .collection('UserData')
+            .doc(memberId)
+            .collection('JoinedWorkspaces')
+            .doc(workspaceId); // target the specific workspace document ID
+        batch.delete(memberWorkspaceRef);
       }
+      
       batch.delete(workspaceRef);
 
       // Subcollections per the current schema: Columns, Tasks, Logs, Records.
@@ -348,7 +353,6 @@ class WorkspacesController extends BaseFirebaseController {
       Get.snackbar("Success", "Workspace has been deleted.", snackPosition: SnackPosition.BOTTOM);
     }, errorMessage: "Could not delete workspace.");
   }
-
   Future<void> confirmAndDeleteWorkspace(String workspaceId, String workspaceName) async {
     Get.dialog(
       AlertDialog(

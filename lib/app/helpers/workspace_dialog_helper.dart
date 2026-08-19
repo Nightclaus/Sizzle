@@ -1,4 +1,3 @@
-//import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/workspaces_controller.dart';
 import '../../general_purpose_widgets.dart';
@@ -20,6 +19,9 @@ void showAddWorkspaceDialog() {
     ],
     submitButtonText: "Next",
     onSubmit: (formData) {
+      // 1. Close the current "Add Workspace" dialog first
+      Get.back(); 
+
       final action = formData['action'];
       if (action == 'Join an existing workspace') {
         _showJoinWorkspaceDialog(controller);
@@ -38,8 +40,15 @@ void _showCreateWorkspaceDialog(WorkspacesController controller) {
     fields: [{'key': 'name', 'type': 'text', 'label': 'Workspace Name', 'required': true}],
     submitButtonText: "Create",
     onSubmit: (formData) async {
-      final name = formData['name'] as String;
-      await controller.createWorkspace(name);
+      try {
+        final name = formData['name'] as String;
+        await controller.createWorkspace(name);
+        
+        // 2. Close the dialog on successful creation
+        Get.back(); 
+      } catch (e) {
+        // Handle or show error if creation fails, keeping the dialog open
+      }
     },
   );
 }
@@ -52,8 +61,15 @@ void _showJoinWorkspaceDialog(WorkspacesController controller) {
     fields: [{'key': 'join_code', 'type': 'text', 'label': 'Enter Join Code', 'required': true}],
     submitButtonText: "Join",
     onSubmit: (formData) async {
-      final code = formData['join_code'] as String;
-      await controller.joinWorkspace(code);
+      try {
+        final code = formData['join_code'] as String;
+        await controller.joinWorkspace(code);
+        
+        // 2. Close the dialog on successfully joining
+        Get.back(); 
+      } catch (e) {
+        // Handle or show error if joining fails, keeping the dialog open
+      }
     },
   );
 }
