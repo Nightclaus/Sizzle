@@ -46,7 +46,7 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? exi
     },
   ];
 
-  return GPFormDialog.show(
+  return GPWFormDialog.show(
     context: context,
     title: editMode ? 'Edit Task' : 'Add New Task',
     fields: formFields,

@@ -4,8 +4,8 @@ import 'package:sizzle/app/models/task_column_model.dart';
 import 'package:sizzle/app/modules/tasks/widgets/add_task_dialog.dart';
 import '../../controllers/tasks_controller.dart';
 import 'widgets/task_card_widget.dart';
+import 'widgets/tasks_column.dart';
 import '../../models/task_model.dart';
-import '../../../general_purpose_widgets.dart';
 import '../../helpers/nav_bar.dart';
 import '../../helpers/workspace_service.dart';
 
@@ -78,7 +78,7 @@ class TasksPage extends GetView<TasksController> {
                       children: controller.columns.map((column) {
                         return Padding(
                           padding: const EdgeInsets.only(right: 16.0),
-                          child: GPColumn<Task>(
+                          child: TasksColumn<Task>(
                             width: defaultColumnWidth,
                             onAccept: (droppedTask) {
                               final fromColumn = controller.getColumnByTask(droppedTask);

@@ -22,7 +22,7 @@ void showProfileSetupDialog(VoidCallback onComplete) {
     {'key': 'description', 'type': 'text', 'label': 'Bio / Description', 'maxLines': 4, 'required': false},
   ];
 
-  GPFormDialog.show(
+  GPWFormDialog.show(
     context: context,
     title: 'Complete Your Profile',
     fields: formFields,
