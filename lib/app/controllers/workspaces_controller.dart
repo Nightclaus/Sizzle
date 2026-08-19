@@ -50,6 +50,9 @@ class WorkspacesController extends BaseFirebaseController {
   }
 
   Future<void> saveAndSelectWorkspace(Workspace workspace) async {
+    if (workspace.id == "_records") {
+      return;
+    }
     _workspaceService.selectWorkspace(workspace);
 
     if (userId == null) return;
