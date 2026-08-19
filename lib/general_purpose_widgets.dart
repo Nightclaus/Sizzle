@@ -78,7 +78,7 @@ class GPWFormDialog {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                foregroundColor: theme.primaryColor.withAlpha(60),
+                foregroundColor: theme.colorScheme.onPrimary,
                 backgroundColor: theme.primaryColor,
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.all(Radius.circular(8)),
