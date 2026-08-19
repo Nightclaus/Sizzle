@@ -80,7 +80,6 @@ Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? exi
         );
       }
       tasksController.addTask(columnId, newTask);
-      Get.back(); // Close the dialog
     },
   );
 }

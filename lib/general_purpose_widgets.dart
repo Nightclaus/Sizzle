@@ -28,13 +28,6 @@ bool isOverflowing(GlobalKey containerKey, GlobalKey contentKey) {
 class GPFormDialog {
   /// ---------------------------------------------------------------------------- ///
   ///  Displays a styled form in a dialog, built dynamically.
-  ///
-  /// - [title]: The title displayed at the top of the dialog.
-  /// - [fields]: A list of maps, where each map defines a form field.
-  /// - [initialData]: A map of initial values for the fields, used for "edit" mode.
-  /// - [onSubmit]: A callback that receives the form data as a map when submitted.
-  /// - [submitButtonText]: The text for the primary submission button.
-  /// 
   /// ---------------------------------------------------------------------------- ///
   
   static Future<void> show({
@@ -49,10 +42,8 @@ class GPFormDialog {
     final theme = Theme.of(context);
     final dropdownMenuColor = lightenColor(theme.primaryColor, 70);
 
-    // This map will hold the current state of the form data.
     final Map<String, dynamic> formData = {};
 
-    // Initialise form data with initial values (for edit mode) or defaults.
     for (var field in fields) {
       final key = field['key'];
       if (initialData != null && initialData.containsKey(key)) {
@@ -62,68 +53,75 @@ class GPFormDialog {
       }
     }
 
-    return Get.dialog(
-      AlertDialog(
-        backgroundColor: Colors.white,
-        insetPadding: const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 24),
-        title: Text(title),
-        content: SingleChildScrollView(
-          child: Form(
-            key: formKey,
-            child: SizedBox(
-              width: 300, // Fixed width for consistent layout
-              // Use a StatefulBuilder to manage the form's state within the dialog.
-              child: StatefulBuilder(
-                builder: (BuildContext context, StateSetter setState) {
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: fields.map((field) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: _buildFormField(field, formData, setState, dropdownMenuColor),
-                      );
-                    }).toList(),
-                  );
-                },
+    // FIX: Using standard showDialog with its own isolated dialogContext
+    // This stops Get.back() from losing track of what to close.
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 24),
+          title: Text(title),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: SizedBox(
+                width: 300, 
+                child: StatefulBuilder(
+                  builder: (BuildContext stfContext, StateSetter setState) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: fields.map((field) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: _buildFormField(field, formData, setState, dropdownMenuColor),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
               ),
             ),
           ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            style: TextButton.styleFrom(
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(8)),
+          actions: <Widget>[
+            TextButton(
+              style: TextButton.styleFrom(
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                ),
               ),
+              child: const Text('Cancel'),
+              // FIX: Reliably pops only the dialog itself
+              onPressed: () => Navigator.pop(dialogContext), 
             ),
-            child: const Text('Cancel'),
-            onPressed: () => Get.back(),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
-              backgroundColor: theme.primaryColor,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(8)),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                foregroundColor: lightenColor(theme.primaryColor.withAlpha(60), 150),
+                backgroundColor: theme.primaryColor,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                ),
               ),
+              child: Text(submitButtonText),
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  formKey.currentState!.save();
+                  
+                  // FIX: Close the dialog securely right away.
+                  Navigator.pop(dialogContext);
+                  
+                  // Execute business logic afterwards.
+                  onSubmit(formData); 
+                }
+              },
             ),
-            child: Text(submitButtonText),
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                formKey.currentState!.save();
-                Get.back(); // why tf does this work, onSubmit should have terminated pretty quick anyways
-                onSubmit(formData);
-                //Get.back();
-              }
-            },
-          ),
-        ],
-      ),
-      barrierDismissible: false, // Prevent closing by tapping outside
+          ],
+        );
+      },
     );
   }
 
-  // Private helper to build a form field based on its definition map.
   static Widget _buildFormField(
     Map<String, dynamic> field,
     Map<String, dynamic> formData,
@@ -145,8 +143,14 @@ class GPFormDialog {
           onSaved: (value) => formData[key] = value,
         );
       case 'dropdown':
-        // Note: The options are expected to be a List<String> for simplicity.
         List<String> options = List<String>.from(field['options']);
+        
+        // FIX: If the initial data string doesn't match an option EXACTLY, 
+        // the dialog crashes silently. This ensures it's perfectly safe.
+        if (!options.contains(formData[key])) {
+          formData[key] = options.isNotEmpty ? options.first : null;
+        }
+
         return DropdownButtonFormField<String>(
           decoration: InputDecoration(labelText: label),
           dropdownColor: dropdownColor,
@@ -239,10 +243,8 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
       child: InkWell(
         onTap: () {
-          // General onClick callback
           widget.onClick?.call();
 
-          // Toggle expansion if expandable
           if (widget.isExpandable) {
             setState(() {
               _isExpanded = !_isExpanded;
@@ -254,12 +256,11 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
           padding: const EdgeInsets.only(top: 3, right: 12, left: 12, bottom: 12),
           child: Stack(
             children: [
-              // Edit and Delete Buttons (Top Right)
               if (widget.onEdit != null || widget.onDelete != null)
-                SizedBox(height: 35, child: // Aligned using the center position of a 35p high box
+                SizedBox(height: 35, child: 
                   Row(
                     children: [
-                      const Spacer(), // Pushes buttons to the right
+                      const Spacer(), 
                       if (widget.onEdit != null)
                         IconButton(
                           icon: const Icon(Icons.edit),
@@ -281,12 +282,10 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
                     ],
                   ),
                 ),
-              // Main Card Content
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 9),
-                  // Top row for tags/labels
                   Row(
                     children: [
                       _buildTag(widget.tagText, widget.tagColor),
@@ -295,9 +294,8 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  // Title
                   Padding(
-                    padding: const EdgeInsets.only(right: 80), // Space for buttons
+                    padding: const EdgeInsets.only(right: 80), 
                     child: Text(
                       widget.title,
                       style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -305,11 +303,10 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Description
                   if (widget.description.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Padding(
-                      padding: const EdgeInsets.only(right: 80), // Space for buttons
+                      padding: const EdgeInsets.only(right: 80), 
                       child: Text(
                         widget.description,
                         style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
@@ -319,7 +316,6 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
                     ),
                   ],
                   const SizedBox(height: 10),
-                  // Bottom row for date/icons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -335,7 +331,6 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
                       ),
                     ],
                   ),
-                  // Expanded Content
                   if (_isExpanded) ...[
                     const Divider(height: 20, thickness: 1),
                     widget.expandedChild,
@@ -349,7 +344,6 @@ class _GPSelectableCardState extends State<GPSelectableCard> {
     );
   }
 
-  // Helper method to build a tag UI
   Widget _buildTag(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -388,29 +382,15 @@ class GPText extends StatelessWidget {
 /////////////////////////////////////////////////////////////////////////
 
 class GPPopup {
-  /// Shows a customizable dialog.
-  ///
-  /// - [title]: The required title displayed at the top of the dialog.
-  /// - [content]: The required main widget to display in the dialog's body.
-  /// - [actions]: An optional list of custom action buttons (e.g., TextButton,
-  ///   ElevatedButton). If not provided, a default "Close" button is shown.
   static Future<void> show({
     required String title,
     required Widget content,
     List<Widget>? actions,
   }) {
-    // 1. Use Get.dialog() - no BuildContext needed.
     return Get.dialog(
       AlertDialog(
-        // Set the title using a Text widget for proper styling.
         title: Text(title),
-        
-        // Pass the content widget directly.
         content: content,
-        
-        // --- ACTION HANDLING LOGIC ---
-        // Use the null-aware coalescing operator (??) to provide a default.
-        // If the 'actions' list is null, it uses the default TextButton.
         actions: actions ??
             [
               TextButton(
@@ -419,8 +399,6 @@ class GPPopup {
               ),
             ],
       ),
-      // It's good practice to make important dialogs non-dismissible by default.
-      // The user must interact with one of the action buttons.
       barrierDismissible: false,
     );
   }
@@ -433,9 +411,6 @@ class GPColumn<T extends Object> extends StatelessWidget {
   final Widget body;
   final Widget footer;
   final double width;
-  // REMOVED: A flexible widget should not have a fixed height parameter.
-  // It determines its own height from its content.
-  // final double? height;
   final DragTargetAccept<T> onAccept;
   final Widget? hoverPlaceholder;
   final BoxDecoration? decoration;
@@ -448,7 +423,6 @@ class GPColumn<T extends Object> extends StatelessWidget {
     required this.footer,
     required this.onAccept,
     this.width = 300.0,
-    // this.height, // REMOVED from constructor
     this.hoverPlaceholder,
     this.decoration,
     this.margin,
@@ -462,12 +436,10 @@ class GPColumn<T extends Object> extends StatelessWidget {
         final isBeingHovered = candidateData.isNotEmpty;
         final theme = Theme.of(context);
 
-        // The container no longer has a height property. Its height will be
-        // determined by the Column child.
         return Container(
           width: width,
           margin: margin ?? const EdgeInsets.only(right: 16.0),
-          decoration: decoration ?? BoxDecoration( // Shadow
+          decoration: decoration ?? BoxDecoration( 
                 color: theme.cardColor,
                 borderRadius: BorderRadius.circular(12.0),
                 boxShadow: [
@@ -483,7 +455,6 @@ class GPColumn<T extends Object> extends StatelessWidget {
             padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              // Column to size itself to its children.
               mainAxisSize:  MainAxisSize.min,
               children: [
                 header,
@@ -492,10 +463,10 @@ class GPColumn<T extends Object> extends StatelessWidget {
                   _buildHoverUI(context)
                 else
                   Container(
-                    clipBehavior: Clip.none, // Holy grail
+                    clipBehavior: Clip.none, 
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height - 250, // or whatever offset
+                        maxHeight: MediaQuery.of(context).size.height - 250, 
                         minHeight: 10
                       ),
                       child: SingleChildScrollView(
@@ -513,13 +484,11 @@ class GPColumn<T extends Object> extends StatelessWidget {
     );
   }
 
-  // _buildHoverUI method is unchanged, but it now works correctly.
   Widget _buildHoverUI(BuildContext context) {
     if (hoverPlaceholder != null) {
       return hoverPlaceholder!;
     }
     final theme = Theme.of(context);
-    // Added a ConstrainedBox to ensure the drop target has a decent size.
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 100),
       child: DottedBorder(
@@ -549,5 +518,3 @@ class GPColumn<T extends Object> extends StatelessWidget {
     );
   }
 }
-
-/////////////////////////////////////////////////////////////////////////
