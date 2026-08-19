@@ -187,11 +187,11 @@ class Folder extends FarmRecord {
   bool get requiresAttention =>
       children.any((child) => child.requiresAttention);
 
+  // A direct-children count would be misleading (it ignores nested
+  // folders), and an accurate total needs a recursive/BFS walk that's
+  // overkill just for a summary line — so this stays a simple boolean.
   @override
-  String getSummary() {
-    final count = children.length;
-    return '$count item${count == 1 ? '' : 's'}';
-  }
+  String getSummary() => children.isEmpty ? 'Empty' : 'Filed';
 
   @override
   bool validate() => name.isNotEmpty;

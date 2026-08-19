@@ -35,9 +35,15 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late _RecordKind _kind;
 
+  static const _folderLocation = 'System';
+  static const _locationOptions = ['TKS', 'Tutor'];
+
   late final TextEditingController _name;
   late final TextEditingController _description;
-  late final TextEditingController _location;
+  // Not free text: constrained to _locationOptions for every non-Folder
+  // kind. Folders don't use this at all — their location is always
+  // _folderLocation, set at submit time, not user-editable.
+  String _location = _locationOptions.first;
   bool _isActive = true;
 
   late final TextEditingController _species;
@@ -68,7 +74,11 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
 
     _name = TextEditingController(text: e?.name ?? '');
     _description = TextEditingController(text: e?.description ?? '');
-    _location = TextEditingController(text: e?.location ?? '');
+    // Legacy/unexpected values fall back to the first option rather than
+    // crashing the dropdown on an unrecognized value.
+    _location = (e != null && e is! Folder && _locationOptions.contains(e.location))
+        ? e.location
+        : _locationOptions.first;
     _isActive = e?.isActive ?? true;
 
     _species = TextEditingController(text: e is Animal ? e.species : '');
@@ -146,12 +156,20 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
                   controller: _description,
                   decoration: const InputDecoration(labelText: 'Description'),
                 ),
-                TextFormField(
-                  controller: _location,
-                  decoration: const InputDecoration(labelText: 'Location'),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
+                if (_kind == _RecordKind.folder)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    value: _location,
+                    decoration: const InputDecoration(labelText: 'Location'),
+                    items: _locationOptions
+                        .map((loc) =>
+                            DropdownMenuItem(value: loc, child: Text(loc)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _location = v!),
+                  ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Active'),
@@ -182,7 +200,7 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
     switch (_kind) {
       case _RecordKind.folder:
         return const [
-          Text('Folders just group other records — no extra fields.',
+          Text('Folders are used to group other records.',
               style: TextStyle(fontStyle: FontStyle.italic)),
         ];
       case _RecordKind.animal:
@@ -309,6 +327,7 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
     final now = DateTime.now();
     final id = widget.existing?.id ?? widget.controller.generateId();
     final createdAt = widget.existing?.createdAt ?? now;
+    final location = _kind == _RecordKind.folder ? _folderLocation : _location;
 
     FarmRecord result;
     switch (_kind) {
@@ -317,7 +336,7 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
           id: id,
           name: _name.text.trim(),
           description: _description.text.trim(),
-          location: _location.text.trim(),
+          location: location,
           createdAt: createdAt,
           updatedAt: now,
           isActive: _isActive,
@@ -328,7 +347,7 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
           id: id,
           name: _name.text.trim(),
           description: _description.text.trim(),
-          location: _location.text.trim(),
+          location: location,
           createdAt: createdAt,
           updatedAt: now,
           isActive: _isActive,
@@ -345,7 +364,7 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
           id: id,
           name: _name.text.trim(),
           description: _description.text.trim(),
-          location: _location.text.trim(),
+          location: location,
           createdAt: createdAt,
           updatedAt: now,
           isActive: _isActive,
@@ -363,7 +382,7 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
           id: id,
           name: _name.text.trim(),
           description: _description.text.trim(),
-          location: _location.text.trim(),
+          location: location,
           createdAt: createdAt,
           updatedAt: now,
           isActive: _isActive,
@@ -382,7 +401,6 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
   void dispose() {
     _name.dispose();
     _description.dispose();
-    _location.dispose();
     _species.dispose();
     _breed.dispose();
     _weight.dispose();

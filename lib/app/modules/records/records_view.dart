@@ -356,6 +356,7 @@ class _RecordsViewState extends State<RecordsView> {
   void _openRecord(FarmRecord record) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -396,64 +397,67 @@ class _RecordDetailSheet extends StatelessWidget {
       ..remove('id');
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(record.name,
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold)),
-            if (folderPath != null) ...[
-              const SizedBox(height: 4),
-              Text(folderPath!,
+      // The sheet as a whole scrolls (title, path, fields, buttons — all of
+      // it), capped below full screen height. Previously only the field
+      // list scrolled internally, so a long name/description or a small
+      // screen could still overflow around it.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(record.name,
                   style: const TextStyle(
-                      fontStyle: FontStyle.italic, color: Colors.black54)),
-            ],
-            const SizedBox(height: 4),
-            Text(record.recordType,
-                style: const TextStyle(color: Colors.black54)),
-            const Divider(height: 24),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.4),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: fields.entries
-                      .where((e) => e.value != null)
-                      .map((e) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: Text('${e.key}: ${e.value}'),
-                          ))
-                      .toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edit'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete),
-                    label: const Text('Delete'),
-                    style:
-                        OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                  ),
-                ),
+                      fontSize: 20, fontWeight: FontWeight.bold)),
+              if (folderPath != null) ...[
+                const SizedBox(height: 4),
+                Text(folderPath!,
+                    style: const TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.black54)),
               ],
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(record.recordType,
+                  style: const TextStyle(color: Colors.black54)),
+              const Divider(height: 24),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: fields.entries
+                    .where((e) => e.value != null)
+                    .map((e) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Text('${e.key}: ${e.value}'),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Delete'),
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
