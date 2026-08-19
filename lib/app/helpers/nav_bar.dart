@@ -39,18 +39,6 @@ class SizzleNavBar extends StatelessWidget implements PreferredSizeWidget {
             theme: theme,
           ),
 
-          // _buildNavButton(
-          //   title: 'My Farm',
-          //   route: Routes.FARM,
-          //   theme: theme,
-          // ),
-
-          _buildNavButton(
-            title: 'Logs',
-            route: Routes.LOGS,
-            theme: theme,
-          ),
-
           Spacer(),
 
           IconButton(

@@ -6,85 +6,81 @@ import '../../../controllers/tasks_controller.dart';
 import '../../../../general_purpose_widgets.dart';
 
 Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? existingTask]) async {
-  final bool isWorkspaceMode = Get.arguments as bool? ?? false;
-  final TasksController tasksController = Get.find<TasksController>(tag: isWorkspaceMode.toString());
+  // FIXED: No longer searching by tag!
+  final TasksController tasksController = Get.find<TasksController>();
   final Uuid uuid = const Uuid();
 
-  bool editMode = false; // ie title: Text((editMode ? 'Edit Task' : 'Add New Task')),
-  if (existingTask != null) {
-    editMode = true;
-  }
+  bool editMode = existingTask != null;
 
-  // Define the structure of your form. This can be stored anywhere.
+  // Define the structure of your form.
   final formFields = [
     {
       'key': 'name',
       'type': 'text',
       'label': 'Task Name',
-      'initialValue': editMode ? existingTask!.name : '',
+      'initialValue': editMode ? existingTask.name : '',
       'required': true,
     },
     {
       'key': 'description',
       'type': 'text',
       'label': 'Description (Optional)',
-      'initialValue': editMode ? existingTask!.description : '',
+      'initialValue': editMode ? existingTask.description : '',
       'maxLines': 2,
     },
     {
       'key': 'tag',
       'type': 'dropdown',
       'label': 'Tag',
-      'options': ['work', 'passion'], // Using simple strings
-      'initialValue': editMode ? existingTask!.tag.asString :'work',
+      'options': const ['work', 'passion'], 
+      'initialValue': editMode ? existingTask.tag.asString :'work',
       'required': true,
     },
     {
       'key': 'importance',
       'type': 'dropdown',
       'label': 'Importance',
-        'options': ['high', 'medium', 'low'],
-        'initialValue': editMode ? existingTask!.importance.asString : 'medium',
-        'required': true,
-      },
-    ];
+      'options': const ['high', 'medium', 'low'],
+      'initialValue': editMode ? existingTask.importance.asString : 'medium',
+      'required': true,
+    },
+  ];
 
-    return GPFormDialog.show(
-      context: context,
-      title: editMode ? 'Edit Task' :'Add New Task',
-      fields: formFields,
-      submitButtonText: editMode ? 'Edit' : 'Add Task',
-      onSubmit: (formData) {
-        Get.snackbar(
-          'New Item Added',
-          'Data: ${formData.toString()}',
-          snackPosition: SnackPosition.BOTTOM,
+  return GPFormDialog.show(
+    context: context,
+    title: editMode ? 'Edit Task' : 'Add New Task',
+    fields: formFields,
+    submitButtonText: editMode ? 'Edit' : 'Add Task',
+    onSubmit: (formData) {
+      Get.snackbar(
+        'New Item Added',
+        'Data: ${formData.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+
+      late Task newTask;
+      
+      if (!editMode) {
+        newTask = Task(
+          id: uuid.v4(), 
+          name: formData['name'],
+          description: formData['description'],
+          tag: getTaskTag(formData['tag'])!,
+          importance: getTaskImportance(formData['importance'])!,
+          parentId: columnId,
         );
-
-        late Task newTask;
-        //if (formData.isNotEmpty) {
-        if (!editMode) {
-          newTask = Task(
-            id: uuid.v4(), // Used v4 for full randomness
-            name: formData['name'],
-            description: formData['description'],
-            tag: getTaskTag(formData['tag'])!,
-            importance: getTaskImportance(formData['importance'])!,
-            parentId: columnId,
-          );
-        } else {
-          newTask = Task(
-            id: existingTask!.id,
-            name: formData['name'],
-            description: formData['description'],
-            tag: getTaskTag(formData['tag'])!,
-            importance: getTaskImportance(formData['importance'])!,
-            parentId: columnId,
-          );
-          //tasksController.clearTask(columnId, originalId);
-        }
-        tasksController.addTask(columnId, newTask);
-        Get.back(); // Close the dialog
-      },
-    );
-  }
+      } else {
+        newTask = Task(
+          id: existingTask.id,
+          name: formData['name'],
+          description: formData['description'],
+          tag: getTaskTag(formData['tag'])!,
+          importance: getTaskImportance(formData['importance'])!,
+          parentId: columnId,
+        );
+      }
+      tasksController.addTask(columnId, newTask);
+      Get.back(); // Close the dialog
+    },
+  );
+}

@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../models/task_model.dart';
 import '../../../controllers/tasks_controller.dart';
-import 'add_task_dialog.dart'; // Edit Button, Edit mode has not been re-added yet
+import 'add_task_dialog.dart'; 
 import '../../../../general_purpose_widgets.dart';
-
-// TODO : Make a getHeight() function to make the column expansion more smooth
 
 class TaskCardWidget extends StatelessWidget {
   final Task task;
-  final VoidCallback? onTap; // For opening task details later
+  final VoidCallback? onTap; 
 
   const TaskCardWidget({super.key, required this.task, this.onTap});
 
@@ -19,12 +17,13 @@ class TaskCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isWorkspaceMode = Get.arguments as bool? ?? false;
-    final TasksController tasksController = Get.find<TasksController>(tag: isWorkspaceMode.toString()); // Added this to sync with the new screen
+    // FIXED: Removed isWorkspaceMode and tag search!
+    final TasksController tasksController = Get.find<TasksController>(); 
+
     return GPSelectableCard(
       title: task.name,
       description: task.description,
-      tagText: task.tag.asString, // Avoiding Legacy
+      tagText: task.tag.asString, 
       tagColor: task.tagColor,
       importanceText: task.importance.asString,
       importanceColor: task.importanceColor,
