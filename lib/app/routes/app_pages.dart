@@ -7,6 +7,8 @@ import '../modules/auth/bindings/auth_binding.dart';
 import '../modules/auth/views/login_screen.dart';
 import '../modules/home/home_binding.dart';
 import '../modules/home/workspace_view.dart';
+import '../modules/records/records_binding.dart';
+import '../modules/records/records_view.dart';
 import '../modules/splash_screen.dart';
 
 part 'app_routes.dart'; // Connected
@@ -31,6 +33,11 @@ class AppPages {
       name: _Paths.TASKS,
       page: () => TasksPage(),
       binding: TasksBinding(),
+    ),
+    GetPage(
+      name: _Paths.RECORDS,
+      page: () => RecordsView(),
+      binding: RecordsBinding(),
     ),
     GetPage(
       name: _Paths.SPLASH,

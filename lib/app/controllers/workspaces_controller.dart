@@ -28,7 +28,7 @@ class WorkspacesController extends BaseFirebaseController {
   /// Called when a workspace card is tapped: makes it the active workspace
   void onWorkspaceSelected(Workspace workspace) {
     _workspaceService.selectWorkspace(workspace);
-    Get.toNamed(Routes.TEAM);
+    Get.toNamed(Routes.TASKS);
   }
 
   Future<void> fetchInitialData() async {
@@ -82,12 +82,10 @@ class WorkspacesController extends BaseFirebaseController {
     if (doc.exists) userProfile.value = UserProfileData.fromMap(doc.data()!);
   }
 
-  /// Checks if the two specific workspaces exist. 
-  /// If not, it builds them automatically and registers the current user.
   Future<void> _ensureDefaultWorkspacesExist() async {
     if (userId == null) return;
     
-    const requiredWorkspaces = ['tks_farm', 'tutor_house_farm'];
+    const requiredWorkspaces = ['tks_farm', 'tutor_house_farm', '_records'];
 
     for (final wsName in requiredWorkspaces) {
       // Using the exact name as the document ID guarantees uniqueness
@@ -139,6 +137,7 @@ class WorkspacesController extends BaseFirebaseController {
       final docs = await Future.wait([
         firestore.collection('Workspaces').doc('tks_farm').get(),
         firestore.collection('Workspaces').doc('tutor_house_farm').get(),
+        firestore.collection('Workspaces').doc('_records').get(),
       ]);
 
       return docs.where((d) => d.exists).map(Workspace.fromFirestore).toList();

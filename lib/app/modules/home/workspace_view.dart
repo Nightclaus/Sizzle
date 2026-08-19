@@ -211,7 +211,7 @@ class HomeScreen extends GetView<WorkspacesController> {
             tooltip: "Edit in Workspace",
             onPressed: () {
               if (task.sourceWorkspaceName != null) {
-                _goToWorkspace(task.sourceWorkspaceName!);
+                _goToWorkspace(task.sourceWorkspaceName!, Routes.TASKS);
                 Get.snackbar(
                   "Workspace Opened", 
                   "You can edit '${task.name}' here.",
@@ -291,26 +291,19 @@ class HomeScreen extends GetView<WorkspacesController> {
                     _buildStackedBar(
                       title: "TKS Farm",
                       backgroundColor: const Color(0xFF948473), // Matches the tasks brown/reference image
-                      onTap: () => _goToWorkspace('tks_farm'),
+                      onTap: () => _goToWorkspace('tks_farm', Routes.TASKS),
                     ),
                     const SizedBox(height: 20),
                     _buildStackedBar(
                       title: "Tutor House Farm",
                       backgroundColor: const Color(0xFF948473),
-                      onTap: () => _goToWorkspace('tutor_house_farm'),
+                      onTap: () => _goToWorkspace('tutor_house_farm', Routes.TASKS),
                     ),
                     const SizedBox(height: 20),
                     _buildStackedBar(
                       title: "Records",
                       backgroundColor: const Color(0xFF948473),
-                      onTap: () {
-                        Get.snackbar(
-                          "Coming Soon", 
-                          "The Records portal is under construction.",
-                          backgroundColor: const Color(0xFF736353),
-                          colorText: Colors.white,
-                        );
-                      },
+                      onTap: () => _goToWorkspace('_records', Routes.RECORDS),
                     ),
                   ],
                 );
@@ -360,11 +353,11 @@ class HomeScreen extends GetView<WorkspacesController> {
     );
   }
 
-  void _goToWorkspace(String workspaceId) {
+  void _goToWorkspace(String workspaceId, String targetRoute) {
     try {
       final workspace = controller.joinedWorkspaces.firstWhere((ws) => ws.id == workspaceId);
       controller.saveAndSelectWorkspace(workspace);
-      Get.offAllNamed(Routes.TASKS); 
+      Get.offAllNamed(targetRoute); 
     } catch (e) {
       Get.snackbar(
         "Loading", 
