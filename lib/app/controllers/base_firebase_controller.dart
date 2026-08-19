@@ -3,8 +3,6 @@ import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../helpers/logging_service.dart';
-
 /// Shared base for GetX controllers that talk to Firebase.
 ///
 /// Centralizes what every controller in this app was repeating:
@@ -114,24 +112,6 @@ abstract class BaseFirebaseController extends GetxController {
     final snapshot = await ref.where(field, isEqualTo: isEqualTo).get();
     for (final doc in snapshot.docs) {
       batch.delete(doc.reference);
-    }
-  }
-}
-
-/// Adds a guarded call to [LoggingService.logAction] for controllers that
-/// log workspace activity — a no-op until both ids are resolved.
-mixin WorkspaceLoggingMixin on GetxController {
-  void logWorkspaceAction({
-    required String? workspaceId,
-    required String? userId,
-    required String message,
-  }) {
-    if (workspaceId != null && userId != null) {
-      LoggingService.logAction(
-        workspaceId: workspaceId,
-        userId: userId,
-        actionMessage: message,
-      );
     }
   }
 }

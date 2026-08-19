@@ -11,7 +11,7 @@ import 'base_firebase_controller.dart';
 /// inside a workspace, so there is no more personal-vs-workspace mode:
 /// columns are always the workspace's members, and tasks are always the
 /// workspace's Tasks subcollection.
-class TasksController extends BaseFirebaseController with WorkspaceLoggingMixin {
+class TasksController extends BaseFirebaseController {
   RxList<TaskColumn> columns = <TaskColumn>[].obs;
 
   final WorkspaceService _workspaceService = Get.find<WorkspaceService>();
@@ -97,34 +97,14 @@ class TasksController extends BaseFirebaseController with WorkspaceLoggingMixin 
 
     columns[columnIndex].tasks.removeWhere((t) => t.id == task.id);
     columns[columnIndex].tasks.add(task);
-
-    logWorkspaceAction(
-      workspaceId: workspaceId,
-      userId: userId,
-      message: "created task '${task.name}'",
-    );
   }
 
   Future<void> deleteTask(String columnId, String taskId) async {
     if (tasksDbRef == null) return;
-
-    final taskToDelete = columns
-        .firstWhereOrNull((c) => c.id == columnId)
-        ?.tasks
-        .firstWhereOrNull((t) => t.id == taskId);
-
     await deleteDoc(tasksDbRef!, taskId);
     final columnIndex = columns.indexWhere((col) => col.id == columnId);
     if (columnIndex != -1) {
       columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
-    }
-
-    if (taskToDelete != null) {
-      logWorkspaceAction(
-        workspaceId: workspaceId,
-        userId: userId,
-        message: "deleted task '${taskToDelete.name}'",
-      );
     }
   }
 

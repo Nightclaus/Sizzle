@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:dotted_border/dotted_border.dart'; // Could make this a general purpose widget aswell
 import '../../controllers/workspaces_controller.dart';
-import '../../helpers/workspace_dialog_helper.dart';
-import '../../models/workspace_model.dart';
 import '../../models/task_model.dart';
 import '../../helpers/profile_dialogue_helper.dart';
 import '../../helpers/nav_bar.dart';
+import '../../routes/app_pages.dart';
+import '../../helpers/workspace_service.dart';
+
 
 // Workspace Viewer
 class HomeScreen extends GetView<WorkspacesController> {
@@ -33,7 +33,7 @@ class HomeScreen extends GetView<WorkspacesController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 10), // Just padding bonus, dont look 4 lines above
+          const SizedBox(height: 10),
           _buildUserProfilePreview(),
           const SizedBox(height: 18),
           const Divider(color: Colors.white54),
@@ -53,7 +53,9 @@ class HomeScreen extends GetView<WorkspacesController> {
       return GestureDetector(
         onTap: () {
           // Re-opens the account setup dialog for editing
-          showProfileSetupDialog(() {controller.fetchUserProfile();});
+          showProfileSetupDialog(() {
+            controller.fetchUserProfile();
+          });
         },
         child: Row(
           children: [
@@ -86,15 +88,14 @@ class HomeScreen extends GetView<WorkspacesController> {
     return Expanded(
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.only( // Visual Style
+        padding: const EdgeInsets.only(
           top: 30,
           left: 20,
           right: 12,
           bottom: 50,
         ),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE0E0E0), // Light Grey
-          //borderRadius: BorderRadius.circular(12),
+        decoration: const BoxDecoration(
+          color: Color(0xFFE0E0E0), // Light Grey
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,11 +110,13 @@ class HomeScreen extends GetView<WorkspacesController> {
                 final tasks = controller.notifications;
 
                 if (controller.isLoading.value && tasks.isEmpty) {
-                  return const Center(child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ));
+                  return const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
                 }
 
                 if (tasks.isEmpty) {
@@ -176,12 +179,29 @@ class HomeScreen extends GetView<WorkspacesController> {
                 if (controller.isLoading.value && controller.joinedWorkspaces.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                return Wrap(
-                  spacing: 24,
-                  runSpacing: 24,
+                
+                return Column(
                   children: [
-                    ...controller.joinedWorkspaces.map((ws) => _buildWorkspaceCard(ws)),
-                    _buildAddNewCard(),
+                    _buildStackedBar(
+                      title: "TKS Farm",
+                      color: const Color(0xFF0D47A1), // Dark Blue
+                      onTap: () => _goToWorkspace('tks_farm'),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildStackedBar(
+                      title: "Tutor House Farm",
+                      color: const Color(0xFF2E7D32), // Dark Green
+                      onTap: () => _goToWorkspace('tutor_house_farm'),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildStackedBar(
+                      title: "Records",
+                      color: const Color(0xFFE65100), // Dark Orange
+                      onTap: () {
+                        // Placeholder for Records implementation
+                        Get.snackbar("Coming Soon", "The Records portal is under construction.");
+                      },
+                    ),
                   ],
                 );
               }),
@@ -191,99 +211,64 @@ class HomeScreen extends GetView<WorkspacesController> {
       ),
     );
   }
-   Widget _buildWorkspaceCard(Workspace workspace) {
-    final bool isOwner = workspace.ownerId == controller.currentUserId;
 
+  Widget _buildStackedBar({required String title, required Color color, required VoidCallback onTap}) {
     return GestureDetector(
-      onTap: () => controller.onWorkspaceSelected(workspace),
-      child: SizedBox(
-        width: 150,
-        height: 150,
-        child: Stack(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 100,
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 6,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.lightBlue[200],
-                borderRadius: BorderRadius.circular(20),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
               ),
             ),
-            Align(
-              alignment: Alignment.topRight, // Positioned better
-              child: PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Colors.white),
-                onSelected: (value) {
-                  if (value == 'edit') {
-                    controller.showEditWorkspaceNameDialog(workspace);
-                  } else if (value == 'delete') {
-                    controller.confirmAndDeleteWorkspace(workspace.id, workspace.name);
-                  } else if (value == 'leave') {
-                    controller.confirmAndLeaveWorkspace(workspace.id, workspace.name);
-                  }
-                },
-                itemBuilder: (context) {
-                  // Dynamically build the menu based on ownership
-                  if (isOwner) {
-                    return const [
-                      PopupMenuItem(value: 'edit', child: Text('Edit Name')),
-                      PopupMenuItem(value: 'delete', child: Text('Delete Workspace')),
-                    ];
-                  } else {
-                    return const [
-                      PopupMenuItem(value: 'leave', child: Text('Leave Workspace')),
-                    ];
-                  }
-                },
-              ),
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: 60,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0D47A1), // Dark Blue
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Center(
-                  child: Text(
-                    workspace.name,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 28),
           ],
         ),
       ),
     );
   }
-  Widget _buildAddNewCard() {
-    return GestureDetector(
-      onTap: showAddWorkspaceDialog,
-      child: DottedBorder(
-        borderType: BorderType.RRect,
-        radius: const Radius.circular(20),
-        dashPattern: const [10, 6],
-        strokeWidth: 3,
-        color: Colors.black54,
-        child: SizedBox(
-          width: 150,
-          height: 150,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.add, size: 48),
-              const SizedBox(height: 8),
-              const Text("Add New", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      ),
-    );
+
+  /// Helper to find the pre-built workspace from the controller and navigate
+  void _goToWorkspace(String workspaceId) {
+    final WorkspaceService workspaceService = Get.find<WorkspaceService>();
+    
+    try {
+      // 1. Find the real, fully-loaded Workspace object from the controller's list
+      final workspace = controller.joinedWorkspaces.firstWhere((ws) => ws.id == workspaceId);
+      
+      // 2. Call the correct METHOD on the service (selectWorkspace, not selectedWorkspace)
+      workspaceService.selectWorkspace(workspace);
+      
+      // 3. Navigate to Tasks! (Add arguments: true if your TasksBinding needs to know it's workspace mode)
+      Get.offAllNamed(Routes.TASKS, arguments: true); 
+      
+    } catch (e) {
+      Get.snackbar(
+        "Loading", 
+        "Workspace data is still syncing, please wait a moment.",
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
   }
 }

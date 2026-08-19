@@ -7,10 +7,6 @@ import '../modules/auth/bindings/auth_binding.dart';
 import '../modules/auth/views/login_screen.dart';
 import '../modules/home/home_binding.dart';
 import '../modules/home/workspace_view.dart';
-import '../modules/clipboard/bindings/clipboard_binding.dart';
-import '../modules/clipboard/views/clipboard_view.dart';
-import '../modules/logs/bindings/logs_binding.dart';
-import '../modules/logs/views/logs_screen.dart';
 import '../modules/splash_screen.dart';
 
 part 'app_routes.dart'; // Connected
@@ -35,21 +31,6 @@ class AppPages {
       name: _Paths.TASKS,
       page: () => TasksPage(),
       binding: TasksBinding(),
-    ),
-    GetPage(
-      name: _Paths.CLIPBOARD,
-      page: () => ClipboardScreen(),
-      binding: ClipboardBinding(),
-    ),
-    GetPage( // Used, NavBar uses toNamed to pass argument but this is needed to seperate Tasks from Team
-      name: _Paths.TEAM,
-      page: () => TasksPage(),
-      binding: TasksBinding(),
-    ),
-    GetPage(
-      name: _Paths.LOGS,
-      page: () => const LogsScreen(),
-      binding: LogsBinding(),
     ),
     GetPage(
       name: _Paths.SPLASH,
