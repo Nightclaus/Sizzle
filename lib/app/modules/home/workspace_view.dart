@@ -6,7 +6,6 @@ import '../../models/task_model.dart';
 import '../../helpers/profile_dialogue_helper.dart';
 import '../../helpers/nav_bar.dart';
 import '../../routes/app_pages.dart';
-import '../../helpers/workspace_service.dart';
 
 // Workspace Viewer
 class HomeScreen extends GetView<WorkspacesController> {
@@ -362,12 +361,10 @@ class HomeScreen extends GetView<WorkspacesController> {
   }
 
   void _goToWorkspace(String workspaceId) {
-    final WorkspaceService workspaceService = Get.find<WorkspaceService>();
-    
     try {
       final workspace = controller.joinedWorkspaces.firstWhere((ws) => ws.id == workspaceId);
-      workspaceService.selectWorkspace(workspace);
-      Get.offAllNamed(Routes.TASKS, arguments: true); 
+      controller.saveAndSelectWorkspace(workspace);
+      Get.offAllNamed(Routes.TASKS); 
     } catch (e) {
       Get.snackbar(
         "Loading", 

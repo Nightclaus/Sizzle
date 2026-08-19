@@ -36,7 +36,44 @@ class WorkspacesController extends BaseFirebaseController {
       await fetchUserProfile();
       await _ensureDefaultWorkspacesExist();
       await fetchJoinedWorkspacesAndNotifications();
+
+      final recentId = userProfile.value?.mostRecentWorkspaceId;
+      if (_workspaceService.selectedWorkspace.value == null && recentId != null) {
+        try {
+          final recentWs = joinedWorkspaces.firstWhere((ws) => ws.id == recentId);
+          _workspaceService.selectWorkspace(recentWs);
+        } catch (_) {
+          // Fallback if the workspace is missing from their list
+        }
+      }
     });
+  }
+
+  Future<void> saveAndSelectWorkspace(Workspace workspace) async {
+    _workspaceService.selectWorkspace(workspace);
+
+    if (userId == null) return;
+
+    try {
+      await firestore
+          .collection("UserData")
+          .doc(userId)
+          .collection("ProfileData")
+          .doc("main")
+          .update({'mostRecentWorkspaceId': workspace.id});
+
+      if (userProfile.value != null) {
+        final current = userProfile.value!;
+        userProfile.value = UserProfileData(
+          name: current.name,
+          handle: current.handle,
+          description: current.description,
+          mostRecentWorkspaceId: workspace.id,
+        );
+      }
+    } catch (e) {
+      print("Failed to save recent workspace: $e");
+    }
   }
 
   Future<void> fetchUserProfile() async {
