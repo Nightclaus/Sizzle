@@ -4,6 +4,12 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../helpers/workspace_service.dart';
 import '../models/records_model.dart';
+import '../helpers/date_index.dart';
+
+/// Fields records can be sorted by.
+enum RecordSortField { createdAt, updatedAt, name }
+
+enum SortDirection { ascending, descending }
 
 /// Where a record currently sits: the record itself, its immediate parent
 /// (null if it's a top-level root), and which root index in
@@ -29,6 +35,15 @@ class RecordsController extends GetxController {
   // Folders/Animals/etc. side by side.
   RxList<FarmRecord> records = <FarmRecord>[].obs;
   RxBool isLoading = false.obs;
+
+  // Secondary index: the *same* FarmRecord objects as the trees in
+  // [records], held flat and sorted by createdAt for O(log n + k)
+  // date-range queries via binary search — see DateIndex for why this is
+  // architecturally separate from the tree. moveRecord/moveToRoot never
+  // touch this: re-parenting a node changes neither its createdAt nor its
+  // object identity, so the index doesn't go stale when the tree shape
+  // changes.
+  final DateIndex dateIndex = DateIndex();
 
   @override
   void onInit() {
@@ -62,6 +77,7 @@ class RecordsController extends GetxController {
       }
 
       records.value = parsed;
+      dateIndex.rebuild(parsed.expand((root) => root.dfs()));
     } catch (e) {
       print("Error loading records: $e");
     } finally {
@@ -70,13 +86,14 @@ class RecordsController extends GetxController {
   }
 
   // -------------------------------------------------------------------
-  // BFS-backed read access. Each of these runs the relevant FarmRecord
-  // traversal once per root and merges results — the BFS itself lives on
-  // the model (FarmRecord.bfs/findById/search/findPath/findParentOf).
+  // Read access backed by the model's traversal methods. Most of these
+  // use DFS under the hood (see FarmRecord for why) — the exception is
+  // getPathTo/getFolderPathString, which need findPath's BFS shortest-path
+  // guarantee for a correct breadcrumb.
   // -------------------------------------------------------------------
 
   List<FarmRecord> get allRecordsFlat =>
-      records.expand((root) => root.bfs()).toList();
+      records.expand((root) => root.dfs()).toList();
 
   FarmRecord? findRecordById(String id) {
     for (final root in records) {
@@ -109,6 +126,117 @@ class RecordsController extends GetxController {
     final path = getPathTo(id);
     if (path == null) return null;
     return path.map((r) => r.name).join(separator);
+  }
+
+  // -------------------------------------------------------------------
+  // Date-range queries via the secondary index. O(log n + k) — see
+  // DateIndex for the binary search this is built on. Interval
+  // convention matches DateIndex: start <= createdAt < end.
+  // -------------------------------------------------------------------
+
+  List<FarmRecord> findRecordsByDateRange(DateTime start, DateTime end) =>
+      dateIndex.findRecordsByDateRange(start, end);
+
+  DateTime? get earliestCreatedAt => dateIndex.earliest;
+  DateTime? get latestCreatedAt => dateIndex.latest;
+
+  // -------------------------------------------------------------------
+  // DFS-backed filtering. Each of these DFS-walks every root's subtree
+  // (FarmRecord.dfs) and merges the results into one flat 1D list — the
+  // traversal itself lives on the model, same as the BFS methods above.
+  // -------------------------------------------------------------------
+
+  /// DFS-filters the whole forest down to instances of [T] — e.g.
+  /// `filterByType<Animal>()`, `filterByType<Equipment>()`,
+  /// `filterByType<Inventory>()`. Unsorted; pass the result to
+  /// [mergeSort] to order it.
+  List<T> filterByType<T extends FarmRecord>() {
+    return records.expand((root) => root.dfs()).whereType<T>().toList();
+  }
+
+  /// DFS-filters the whole forest with an arbitrary predicate.
+  List<FarmRecord> filterRecordsDfs(bool Function(FarmRecord record) test) {
+    return records.expand((root) => root.dfs()).where(test).toList();
+  }
+
+  // -------------------------------------------------------------------
+  // Merge sort. A standalone utility over any flat list of FarmRecord —
+  // not tied to how that list was produced, so it works equally well on
+  // filterByType output, filterRecordsDfs output, or searchByName output.
+  // O(n log n), stable (equal elements keep their relative order).
+  // -------------------------------------------------------------------
+
+  /// Sorts [input] by [field]/[direction] using merge sort. Does not
+  /// mutate [input]; returns a new list.
+  List<T> mergeSort<T extends FarmRecord>(
+    List<T> input, {
+    required RecordSortField field,
+    SortDirection direction = SortDirection.ascending,
+  }) {
+    if (input.length <= 1) return List<T>.from(input);
+
+    final mid = input.length ~/ 2;
+    final left = mergeSort(input.sublist(0, mid),
+        field: field, direction: direction);
+    final right = mergeSort(input.sublist(mid),
+        field: field, direction: direction);
+
+    return _merge(left, right, field, direction);
+  }
+
+  List<T> _merge<T extends FarmRecord>(
+    List<T> left,
+    List<T> right,
+    RecordSortField field,
+    SortDirection direction,
+  ) {
+    final merged = <T>[];
+    var i = 0, j = 0;
+
+    while (i < left.length && j < right.length) {
+      // <= (not <) keeps the sort stable: on a tie, the element from the
+      // left half — which came first in the original list — wins.
+      if (_compareRecords(left[i], right[j], field, direction) <= 0) {
+        merged.add(left[i]);
+        i++;
+      } else {
+        merged.add(right[j]);
+        j++;
+      }
+    }
+    merged.addAll(left.sublist(i));
+    merged.addAll(right.sublist(j));
+    return merged;
+  }
+
+  int _compareRecords(
+    FarmRecord a,
+    FarmRecord b,
+    RecordSortField field,
+    SortDirection direction,
+  ) {
+    late final int result;
+    switch (field) {
+      case RecordSortField.createdAt:
+        result = a.createdAt.compareTo(b.createdAt);
+        break;
+      case RecordSortField.updatedAt:
+        result = a.updatedAt.compareTo(b.updatedAt);
+        break;
+      case RecordSortField.name:
+        result = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        break;
+    }
+    return direction == SortDirection.ascending ? result : -result;
+  }
+
+  /// Convenience: DFS-filter by type, then merge-sort the result in one
+  /// call. Equivalent to `mergeSort(filterByType<T>(), field: ..., ...)`.
+  List<T> filterAndSort<T extends FarmRecord>({
+    RecordSortField field = RecordSortField.name,
+    SortDirection direction = SortDirection.ascending,
+  }) {
+    return mergeSort(filterByType<T>(), field: field, direction: direction);
   }
 
   /// Finds [id] anywhere in the forest and reports its parent + which root
@@ -154,6 +282,7 @@ class RecordsController extends GetxController {
       (location.record as Folder).addChild(record);
       await _persistRoot(records[location.rootIndex]);
     }
+    dateIndex.addToDateIndex(record);
     records.refresh();
   }
 
@@ -163,9 +292,13 @@ class RecordsController extends GetxController {
     final location = locate(updated.id);
     if (location == null) return false;
 
+    // The date index holds object references, not ids — grab the pre-edit
+    // object now, before it's replaced, so it can be swapped out below.
+    final previous = location.record;
+
     updated.children
       ..clear()
-      ..addAll(location.record.children);
+      ..addAll(previous.children);
 
     if (location.parent == null) {
       records[location.rootIndex] = updated;
@@ -178,6 +311,9 @@ class RecordsController extends GetxController {
       await _persistRoot(records[location.rootIndex]);
     }
 
+    dateIndex.removeFromDateIndex(previous);
+    dateIndex.addToDateIndex(updated);
+
     records.refresh();
     return true;
   }
@@ -187,6 +323,12 @@ class RecordsController extends GetxController {
   Future<bool> deleteRecord(String id) async {
     final location = locate(id);
     if (location == null) return false;
+
+    // A folder's whole subtree disappears with it, so every one of those
+    // nodes needs to come out of the date index too — not just the folder.
+    for (final node in location.record.dfs()) {
+      dateIndex.removeFromDateIndex(node);
+    }
 
     if (location.parent == null) {
       records.removeAt(location.rootIndex);

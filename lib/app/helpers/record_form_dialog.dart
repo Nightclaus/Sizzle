@@ -159,6 +159,12 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
                 if (_kind == _RecordKind.folder)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Location: System — folders are placed there '
+                      'automatically and can\'t be moved.',
+                      style: TextStyle(
+                          color: Colors.black54, fontStyle: FontStyle.italic),
+                    ),
                   )
                 else
                   DropdownButtonFormField<String>(
@@ -200,7 +206,7 @@ class _RecordFormDialogState extends State<_RecordFormDialog> {
     switch (_kind) {
       case _RecordKind.folder:
         return const [
-          Text('Folders are used to group other records.',
+          Text('Folders just group other records — no extra fields.',
               style: TextStyle(fontStyle: FontStyle.italic)),
         ];
       case _RecordKind.animal:

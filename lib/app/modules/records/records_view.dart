@@ -19,6 +19,23 @@ class _RecordsViewState extends State<RecordsView> {
   final Set<String> _expandedIds = {};
   String _query = '';
 
+  // 'All' | 'Animal' | 'Equipment' | 'Inventory' — drives filterByType via
+  // the controller's DFS filter + merge sort.
+  String _typeFilter = 'All';
+  RecordSortField _sortField = RecordSortField.name;
+  SortDirection _sortDirection = SortDirection.ascending;
+
+  // Sort is always visible/enabled — touching it (rather than requiring a
+  // type/date filter to already be active) is itself what switches the
+  // body from the tree to the flat, DFS-filtered, merge-sorted list.
+  bool _sortActivated = false;
+
+  // null = "no date filter, full range". Values are milliseconds-since-
+  // epoch (what RangeSlider needs — it only takes doubles), normalized to
+  // whole days when actually used for a query. Backed by
+  // RecordsController.findRecordsByDateRange, i.e. the binary-search index.
+  RangeValues? _selectedRange;
+
   static const _bg = Color(0xFFFAF8F5);
   static const _cardColor = Color(0xFFC7B9A9);
   static const _textColor = Color(0xFF3E2F23);
@@ -76,20 +93,19 @@ class _RecordsViewState extends State<RecordsView> {
                     child: CircularProgressIndicator(color: _accent));
               }
 
-              if (_query.trim().isNotEmpty) {
-                return _buildSearchResults();
-              }
-
-              if (controller.records.isEmpty) {
-                return const Center(
-                  child: Text(
-                    "No records found in this workspace yet.",
-                    style: TextStyle(fontSize: 18, color: Colors.black54),
-                  ),
-                );
-              }
-
-              return _buildTree();
+              // Filter bar lives inside this same Obx (not a separate one)
+              // — it needs to rebuild whenever records/isLoading changes
+              // (e.g. new earliest/latest bounds for the slider after a
+              // create/delete), but on its own it reads no Rx value at
+              // all (earliestCreatedAt/latestCreatedAt are plain getters
+              // over a non-Rx DateIndex field), so a standalone Obx around
+              // it would throw GetX's "no observables found" assertion.
+              return Column(
+                children: [
+                  _buildFilterBar(),
+                  Expanded(child: _buildBody()),
+                ],
+              );
             }),
           ),
         ],
@@ -97,41 +113,310 @@ class _RecordsViewState extends State<RecordsView> {
     );
   }
 
+  Widget _buildBody() {
+    if (_query.trim().isNotEmpty) {
+      return _buildSearchResults();
+    }
+
+    if (_typeFilter != 'All' || _dateRangeActive || _sortActivated) {
+      return _buildFilteredList();
+    }
+
+    if (controller.records.isEmpty) {
+      return const Center(
+        child: Text(
+          "No records found in this workspace yet.",
+          style: TextStyle(fontSize: 18, color: Colors.black54),
+        ),
+      );
+    }
+
+    return _buildTree();
+  }
+
   // -------------------------------------------------------------------
-  // Search mode — flat results from the controller's BFS search, each
-  // annotated with its folder path (also BFS, via findPath).
+  // Filter bar — type filter, date-range slider, and sort are all always
+  // visible and always enabled. Sort isn't gated on "already filtering":
+  // touching it is itself what activates the flat, DFS-filtered,
+  // merge-sorted view (see _sortActivated) — so nothing here appears or
+  // disappears based on the other controls' state.
+  // -------------------------------------------------------------------
+  Widget _buildFilterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          DropdownButton<String>(
+            value: _typeFilter,
+            underline: const SizedBox(),
+            items: const [
+              DropdownMenuItem(value: 'All', child: Text('All types')),
+              DropdownMenuItem(value: 'Animal', child: Text('Animals')),
+              DropdownMenuItem(value: 'Equipment', child: Text('Equipment')),
+              DropdownMenuItem(value: 'Inventory', child: Text('Inventory')),
+            ],
+            onChanged: (v) => setState(() => _typeFilter = v!),
+          ),
+          _buildDateRangeSlider(),
+          DropdownButton<RecordSortField>(
+            value: _sortField,
+            underline: const SizedBox(),
+            items: const [
+              DropdownMenuItem(
+                  value: RecordSortField.name, child: Text('Sort: Name')),
+              DropdownMenuItem(
+                  value: RecordSortField.createdAt,
+                  child: Text('Sort: Created')),
+              DropdownMenuItem(
+                  value: RecordSortField.updatedAt,
+                  child: Text('Sort: Updated')),
+            ],
+            onChanged: (v) => setState(() {
+              _sortField = v!;
+              _sortActivated = true;
+            }),
+          ),
+          IconButton(
+            tooltip: _sortDirection == SortDirection.ascending
+                ? 'Ascending'
+                : 'Descending',
+            icon: Icon(_sortDirection == SortDirection.ascending
+                ? Icons.arrow_upward
+                : Icons.arrow_downward),
+            onPressed: () => setState(() {
+              _sortDirection = _sortDirection == SortDirection.ascending
+                  ? SortDirection.descending
+                  : SortDirection.ascending;
+              _sortActivated = true;
+            }),
+          ),
+          if (_sortActivated && _typeFilter == 'All' && !_dateRangeActive)
+            // Sort is the only reason we're off the tree right now — give
+            // a way back that doesn't require touching type/date too.
+            InkWell(
+              onTap: () => setState(() => _sortActivated = false),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.clear, size: 16, color: Colors.black45),
+              ),
+            ),
+          if (_query.trim().isNotEmpty)
+            const Text(
+              '(search is active — clear it to see the filter)',
+              style: TextStyle(fontSize: 12, color: Colors.black45),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Two-thumb slider over the dataset's actual createdAt span (earliest
+  /// to latest — read straight off the date index, O(1), since it's
+  /// already sorted). Dragging it narrows `_selectedRange`; queries against
+  /// it go through RecordsController.findRecordsByDateRange, i.e. the
+  /// binary-search index, not a manual scan.
+  Widget _buildDateRangeSlider() {
+    final earliest = controller.earliestCreatedAt;
+    final latest = controller.latestCreatedAt;
+    if (earliest == null || latest == null) {
+      return const SizedBox.shrink(); // nothing to slide over yet
+    }
+
+    final min = earliest.millisecondsSinceEpoch.toDouble();
+    final max = latest.millisecondsSinceEpoch.toDouble();
+    if (max <= min) {
+      return const SizedBox.shrink(); // every record on the same day
+    }
+
+    final current = _selectedRange ?? RangeValues(min, max);
+
+    return SizedBox(
+      width: 260,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _dateRangeActive
+                    ? '${_fmtDate(_toDate(current.start))} – ${_fmtDate(_toDate(current.end))}'
+                    : 'Created: any date',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              if (_dateRangeActive)
+                InkWell(
+                  onTap: () => setState(() => _selectedRange = null),
+                  child: const Padding(
+                    padding: EdgeInsets.only(left: 6),
+                    child:
+                        Icon(Icons.clear, size: 14, color: Colors.black45),
+                  ),
+                ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: _accent,
+              thumbColor: _accent,
+              overlayColor: _accent.withAlpha(40),
+            ),
+            child: RangeSlider(
+              min: min,
+              max: max,
+              values: current,
+              onChanged: (v) => setState(() => _selectedRange = v),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// True once the slider has actually been moved off the full extremes —
+  /// small tolerance since exact double equality after a drag is fussy.
+  bool get _dateRangeActive {
+    final range = _selectedRange;
+    final earliest = controller.earliestCreatedAt;
+    final latest = controller.latestCreatedAt;
+    if (range == null || earliest == null || latest == null) return false;
+    final min = earliest.millisecondsSinceEpoch.toDouble();
+    final max = latest.millisecondsSinceEpoch.toDouble();
+    const slack = 1000; // ~1 second
+    return (range.start - min).abs() > slack || (range.end - max).abs() > slack;
+  }
+
+  DateTime _toDate(double millis) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(millis.round());
+    return DateTime(dt.year, dt.month, dt.day); // day granularity
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Combines the date-range slider (via [RecordsController.findRecordsByDateRange]
+  /// — the binary-search index) with the type dropdown (a plain narrowing
+  /// of that already-small candidate set) and merge sort. Querying the
+  /// index first, then narrowing by type, means the type check only runs
+  /// over the k records the date search already found — not the whole
+  /// forest — which is the correct order to get real use out of the index.
+  Widget _buildFilteredList() {
+    final earliest = controller.earliestCreatedAt;
+    final latest = controller.latestCreatedAt;
+    if (earliest == null || latest == null) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        children: [
+          _buildFilteredBanner('Showing filtered results'),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(child: Text('No records yet.')),
+          ),
+        ],
+      );
+    }
+
+    final rangeStart =
+        _dateRangeActive ? _toDate(_selectedRange!.start) : earliest;
+    // findRecordsByDateRange is half-open [start, end) — push the end one
+    // day past whatever the slider/latest-record day is, so that day's
+    // records are actually included.
+    final rangeEndExclusive = (_dateRangeActive
+            ? _toDate(_selectedRange!.end)
+            : DateTime(latest.year, latest.month, latest.day))
+        .add(const Duration(days: 1));
+
+    final inRange = controller.findRecordsByDateRange(
+        rangeStart, rangeEndExclusive);
+
+    List<FarmRecord> typed;
+    switch (_typeFilter) {
+      case 'Animal':
+        typed = inRange.whereType<Animal>().toList();
+        break;
+      case 'Equipment':
+        typed = inRange.whereType<Equipment>().toList();
+        break;
+      case 'Inventory':
+        typed = inRange.whereType<Inventory>().toList();
+        break;
+      default:
+        // 'All' still leaves out Folders here — a flat results list of
+        // container nodes isn't very useful; browse those in the tree.
+        typed = inRange.where((r) => r is! Folder).toList();
+    }
+
+    final sorted = controller.mergeSort<FarmRecord>(typed,
+        field: _sortField, direction: _sortDirection);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      children: [
+        _buildFilteredBanner('Showing filtered results'),
+        const SizedBox(height: 8),
+        if (sorted.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Text('No records match these filters.',
+                  style: TextStyle(fontSize: 16, color: Colors.black54)),
+            ),
+          )
+        else
+          for (final record in sorted) _buildRecordListTile(record),
+      ],
+    );
+  }
+
+  /// The card used for any flat (non-tree) row — search results and the
+  /// type-filtered list both share this.
+  Widget _buildRecordListTile(FarmRecord record) {
+    final path = controller.getFolderPathString(record.id);
+    return Card(
+      color: _cardColor,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(_iconFor(record), color: _textColor),
+        title: Text(record.name,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, color: _textColor)),
+        subtitle: Text(path ?? record.getSummary(),
+            style: const TextStyle(fontStyle: FontStyle.italic)),
+        trailing: _rowActions(record),
+        onTap: () => _openRecord(record),
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------------
+  // Search mode — flat results from the controller's DFS search, each
+  // annotated with its folder path (BFS, via findPath — the one place
+  // that still wants BFS's shortest-path guarantee).
   // -------------------------------------------------------------------
   Widget _buildSearchResults() {
     final results = controller.searchByName(_query);
 
-    if (results.isEmpty) {
-      return Center(
-        child: Text('No records match "$_query".',
-            style: const TextStyle(fontSize: 16, color: Colors.black54)),
-      );
-    }
-
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      itemCount: results.length,
-      itemBuilder: (context, index) {
-        final record = results[index];
-        final path = controller.getFolderPathString(record.id);
-        return Card(
-          color: _cardColor,
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: Icon(_iconFor(record), color: _textColor),
-            title: Text(record.name,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: _textColor)),
-            subtitle: Text(path ?? record.getSummary(),
-                style: const TextStyle(fontStyle: FontStyle.italic)),
-            trailing: _rowActions(record),
-            onTap: () => _openRecord(record),
-          ),
-        );
-      },
+      children: [
+        _buildFilteredBanner('Showing search results'),
+        const SizedBox(height: 8),
+        if (results.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Text('No records match "$_query".',
+                  style: const TextStyle(fontSize: 16, color: Colors.black54)),
+            ),
+          )
+        else
+          for (final record in results) _buildRecordListTile(record),
+      ],
     );
   }
 
@@ -146,6 +431,29 @@ class _RecordsViewState extends State<RecordsView> {
         const SizedBox(height: 8),
         for (final root in controller.records) _buildNode(root, depth: 0),
       ],
+    );
+  }
+
+  /// Same padding/border/icon-slot shape as [_buildRootDropZone] — sits in
+  /// that exact spot whenever the tree is replaced by a flat list, so
+  /// switching between tree and filtered/search view never changes the
+  /// bar's size and nothing jumps.
+  Widget _buildFilteredBanner(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: _accent.withAlpha(30),
+        border: Border.all(color: _accent),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.filter_alt, size: 16, color: Colors.black45),
+          const SizedBox(width: 6),
+          Text(label,
+              style: const TextStyle(fontSize: 12, color: Colors.black45)),
+        ],
+      ),
     );
   }
 

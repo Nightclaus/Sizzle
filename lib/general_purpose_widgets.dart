@@ -56,7 +56,8 @@ class GPWFormDialog {
                       children: fields.map((field) {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 16.0),
-                          child: _buildFormField(field, formData, setState, dropdownMenuColor),
+                          child: _buildFormField(
+                              stfContext, field, formData, setState, dropdownMenuColor),
                         );
                       }).toList(),
                     );
@@ -104,6 +105,7 @@ class GPWFormDialog {
   }
 
   static Widget _buildFormField(
+    BuildContext context,
     Map<String, dynamic> field,
     Map<String, dynamic> formData,
     StateSetter setState,
@@ -115,12 +117,30 @@ class GPWFormDialog {
 
     switch (field['type']) {
       case 'text':
+        // NEW: 'numeric' opt-in gives a numeric keyboard and validates the
+        // value parses as a number (on top of the existing required
+        // check) — added for record fields like weight/price/quantity.
+        // Existing callers that don't set 'numeric' are unaffected.
+        final bool numeric = field['numeric'] == true;
         return TextFormField(
-          initialValue: formData[key] ?? '',
+          initialValue: formData[key]?.toString() ?? '',
           decoration: InputDecoration(labelText: label),
           maxLines: field['maxLines'] ?? 1,
-          validator: (value) =>
-              isRequired && (value == null || value.isEmpty) ? 'Please enter a $label' : null,
+          keyboardType: numeric
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : TextInputType.text,
+          validator: (value) {
+            if (isRequired && (value == null || value.isEmpty)) {
+              return 'Please enter a $label';
+            }
+            if (numeric &&
+                value != null &&
+                value.isNotEmpty &&
+                double.tryParse(value) == null) {
+              return 'Enter a valid number';
+            }
+            return null;
+          },
           onSaved: (value) => formData[key] = value,
         );
       case 'dropdown':
@@ -163,6 +183,49 @@ class GPWFormDialog {
             });
           },
           contentPadding: EdgeInsets.zero,
+        );
+      case 'date':
+        // NEW. formData[key] holds a DateTime? directly (not a String) —
+        // callers should treat 'date' fields as DateTime in onSubmit.
+        // 'nullable': true shows a clear button and "Not set" instead of
+        // forcing a value. NOTE: this isn't a FormField, so it doesn't
+        // participate in formKey.currentState!.validate() — a required
+        // date left untouched won't block submission the way a required
+        // text/dropdown field does. Callers should default it themselves
+        // if that matters (see record_form_dialog.dart for the pattern).
+        final bool nullable = field['nullable'] == true;
+        final DateTime? current = formData[key] as DateTime?;
+        return InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: current ?? DateTime.now(),
+              firstDate: DateTime(1990),
+              lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
+            );
+            if (picked != null) {
+              setState(() => formData[key] = picked);
+            }
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: label,
+              suffixIcon: nullable && current != null
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () => setState(() => formData[key] = null),
+                    )
+                  : null,
+            ),
+            child: Text(
+              current == null
+                  ? (nullable ? 'Not set' : 'Select a date')
+                  : '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}',
+              style: current == null
+                  ? const TextStyle(color: Colors.black45)
+                  : null,
+            ),
+          ),
         );
       default:
         return Text('Unsupported field type: ${field['type']}');

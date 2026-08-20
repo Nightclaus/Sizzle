@@ -65,25 +65,49 @@ abstract class FarmRecord {
     return result;
   }
 
+  /// Every node in this subtree, DFS pre-order — `this` first, then each
+  /// child's full subtree before moving to the next sibling. Implemented
+  /// with an explicit stack (not recursion) so a very deep tree can't
+  /// blow the call stack.
+  List<FarmRecord> dfs() {
+    final result = <FarmRecord>[];
+    final stack = <FarmRecord>[this];
+    while (stack.isNotEmpty) {
+      final current = stack.removeLast();
+      result.add(current);
+      // Push in reverse so the first child is the next one popped.
+      for (final child in current.children.reversed) {
+        stack.add(child);
+      }
+    }
+    return result;
+  }
+
+  /// DFS-filters this subtree down to nodes of type [T] — e.g.
+  /// `folder.filterByType<Animal>()`. Returns a flat 1D list.
+  List<T> filterByType<T extends FarmRecord>() {
+    return dfs().whereType<T>().toList();
+  }
+
+  // findById/search/findParentOf below deliberately use DFS, not BFS: none
+  // of them need BFS's one actual advantage (shortest path — that's what
+  // findPath is for). They either visit every node anyway (search) or just
+  // need *a* match with no ordering requirement, and DFS's stack peaks at
+  // the current path's siblings rather than a whole tree level, which is
+  // the cheaper traversal for a tree this wide and shallow.
+
   FarmRecord? findById(String targetId) {
-    final queue = Queue<FarmRecord>()..add(this);
-    while (queue.isNotEmpty) {
-      final current = queue.removeFirst();
+    final stack = <FarmRecord>[this];
+    while (stack.isNotEmpty) {
+      final current = stack.removeLast();
       if (current.id == targetId) return current;
-      queue.addAll(current.children);
+      stack.addAll(current.children);
     }
     return null;
   }
 
   List<FarmRecord> search(bool Function(FarmRecord record) test) {
-    final matches = <FarmRecord>[];
-    final queue = Queue<FarmRecord>()..add(this);
-    while (queue.isNotEmpty) {
-      final current = queue.removeFirst();
-      if (test(current)) matches.add(current);
-      queue.addAll(current.children);
-    }
-    return matches;
+    return dfs().where(test).toList();
   }
 
   /// BFS for the path from `this` node down to [targetId] — shortest path,
@@ -101,16 +125,17 @@ abstract class FarmRecord {
     return null;
   }
 
-  /// BFS for the immediate parent of [targetId] in this subtree. Null if
+  /// DFS for the immediate parent of [targetId] in this subtree (early
+  /// exit on match — no need to collect a full traversal first). Null if
   /// [targetId] is `this` node (no parent) or isn't found at all.
   FarmRecord? findParentOf(String targetId) {
     if (id == targetId) return null;
-    final queue = Queue<FarmRecord>()..add(this);
-    while (queue.isNotEmpty) {
-      final current = queue.removeFirst();
+    final stack = <FarmRecord>[this];
+    while (stack.isNotEmpty) {
+      final current = stack.removeLast();
       for (final child in current.children) {
         if (child.id == targetId) return current;
-        queue.add(child);
+        stack.add(child);
       }
     }
     return null;
