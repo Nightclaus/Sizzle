@@ -1,9 +1,9 @@
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/material.dart';
-import '../../../models/task_model.dart';
-import '../../../controllers/tasks_controller.dart';
-import '../../../../general_purpose_widgets.dart';
+import '../models/task_model.dart';
+import '../controllers/tasks_controller.dart';
+import 'general_purpose_widgets.dart';
 
 Future<void> showAddTaskDialog(BuildContext context, String columnId, [Task? existingTask]) async {
   // FIXED: No longer searching by tag!

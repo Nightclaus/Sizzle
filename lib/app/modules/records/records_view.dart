@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import '../../controllers/records_controller.dart';
 import '../../helpers/nav_bar.dart';
 import '../../models/records_model.dart';
-import '../../helpers/record_form_dialog.dart';
+import '../../forms/record_form_dialog.dart';
 
 class RecordsView extends StatefulWidget {
   const RecordsView({Key? key}) : super(key: key);

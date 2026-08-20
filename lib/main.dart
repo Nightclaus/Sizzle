@@ -5,7 +5,7 @@ import 'package:get/get.dart';
 import 'app/routes/app_pages.dart';
 import 'app/helpers/workspace_service.dart';
 
-import 'firebase_options.dart';
+import 'app/helpers/firebase_options.dart';
 import 'app/controllers/auth_controller.dart'; 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 

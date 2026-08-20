@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../models/task_model.dart';
 import '../../../controllers/tasks_controller.dart';
-import 'add_task_dialog.dart';
+import '../../../forms/add_task_dialog.dart';
 
 class TaskCardWidget extends StatefulWidget {
   final Task task;

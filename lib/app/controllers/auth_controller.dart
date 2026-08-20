@@ -5,7 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../routes/app_pages.dart';
-import '../helpers/profile_dialogue_helper.dart';
+import '../forms/profile_dialogue_helper.dart';
 import 'base_firebase_controller.dart';
 
 class AuthController extends BaseFirebaseController {

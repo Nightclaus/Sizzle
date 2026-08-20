@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sizzle/app/models/task_column_model.dart';
-import 'package:sizzle/app/modules/tasks/widgets/add_task_dialog.dart';
+import 'package:sizzle/app/forms/add_task_dialog.dart';
 import '../../controllers/tasks_controller.dart';
 import 'widgets/task_card_widget.dart';
 import 'widgets/tasks_column.dart';

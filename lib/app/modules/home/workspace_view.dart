@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import '../../controllers/workspaces_controller.dart';
 import '../../models/task_model.dart';
-import '../../helpers/profile_dialogue_helper.dart';
+import '../../forms/profile_dialogue_helper.dart';
 import '../../helpers/nav_bar.dart';
 import '../../routes/app_pages.dart';
 
