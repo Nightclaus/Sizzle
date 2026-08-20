@@ -6,6 +6,8 @@ import '../helpers/workspace_service.dart';
 import '../models/records_model.dart';
 import '../helpers/date_index.dart';
 
+const RECORDS = "_records";
+
 /// Fields records can be sorted by.
 enum RecordSortField { createdAt, updatedAt, name }
 
@@ -59,7 +61,7 @@ class RecordsController extends GetxController {
     try {
       final snapshot = await _firestore
           .collection('Workspaces')
-          .doc(activeWs.id)
+          .doc(RECORDS)
           .collection('Records')
           .get();
 
@@ -429,7 +431,7 @@ class RecordsController extends GetxController {
     if (activeWs == null) return;
     await _firestore
         .collection('Workspaces')
-        .doc(activeWs.id)
+        .doc(RECORDS)
         .collection('Records')
         .doc(root.id)
         .set({'data_as_json': root.toJson()}, SetOptions(merge: true));
@@ -440,7 +442,7 @@ class RecordsController extends GetxController {
     if (activeWs == null) return;
     await _firestore
         .collection('Workspaces')
-        .doc(activeWs.id)
+        .doc(RECORDS)
         .collection('Records')
         .doc(rootId)
         .delete();
