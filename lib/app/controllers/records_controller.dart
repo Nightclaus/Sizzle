@@ -2,14 +2,18 @@ import 'dart:convert';
 
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../helpers/workspace_service.dart';
 import '../models/records_model.dart';
+import '../models/user_profile_data.dart';
 import '../helpers/date_index.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'workspaces_controller.dart';
 
 const RECORDS = "_records";
 
-/// Fields records can be sorted by.
-enum RecordSortField { createdAt, updatedAt, name }
+/// Fields records can be sorted by. author/editor sort by the *resolved
+/// display name*, not the raw handle — sorting by handle would put people
+/// in a different order than what's actually shown on screen.
+enum RecordSortField { createdAt, updatedAt, name, author, editor }
 
 enum SortDirection { ascending, descending }
 
@@ -29,7 +33,6 @@ class RecordLocation {
 }
 
 class RecordsController extends GetxController {
-  final WorkspaceService _workspaceService = Get.find<WorkspaceService>();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Each entry is a top-level record (its own tree); the collection as a
@@ -47,6 +50,137 @@ class RecordsController extends GetxController {
   // changes.
   final DateIndex dateIndex = DateIndex();
 
+  // Current user's handle. Prefers whatever WorkspacesController already
+  // has loaded in its `userProfile` Rx — avoids a duplicate Firestore
+  // round trip and stays consistent with whatever the rest of the app
+  // considers "the current user" — falling back to a direct fetch at
+  // UserData/{uid}/ProfileData/main if that controller isn't registered
+  // yet or hasn't loaded a profile yet. Only the successful result is
+  // cached, never null, so a call that fails early (e.g. before
+  // WorkspacesController has loaded) will simply retry next time rather
+  // than sticking with a stale null.
+  // Caveat: if the signed-in user changes mid-session (sign out/in) this
+  // stale-caches the old one; not handling that here since it's a step
+  // beyond what was asked, but flagging it as a real gap.
+  String? _cachedCurrentHandle;
+
+  Future<String?> _currentUserHandle() async {
+    if (_cachedCurrentHandle != null) return _cachedCurrentHandle;
+
+    try {
+      final existing = Get.find<WorkspacesController>().userProfile.value;
+      if (existing != null) {
+        _cachedCurrentHandle = existing.handle;
+        return existing.handle;
+      }
+    } catch (_) {
+      // WorkspacesController not registered, or not reachable this way in
+      // your DI setup — fall through to a direct fetch below.
+    }
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      // ignore: avoid_print
+      print('[RecordsController] _currentUserHandle: no signed-in '
+          'FirebaseAuth user, and WorkspacesController has no cached '
+          'profile either — author/editor will be stamped null.');
+      return null;
+    }
+
+    try {
+      final doc = await _firestore
+          .collection('UserData')
+          .doc(uid)
+          .collection('ProfileData')
+          .doc('main')
+          .get();
+      if (!doc.exists) {
+        // ignore: avoid_print
+        print('[RecordsController] _currentUserHandle: no '
+            'UserData/$uid/ProfileData/main doc.');
+        return null;
+      }
+      final profile = UserProfileData.fromMap(doc.data()!);
+      if (profile.handle.isEmpty || profile.handle == 'No Handle') {
+        // ignore: avoid_print
+        print('[RecordsController] _currentUserHandle: profile exists but '
+            'has no handle field set.');
+      }
+      _cachedCurrentHandle = profile.handle;
+      return profile.handle;
+    } catch (e) {
+      // ignore: avoid_print
+      print('[RecordsController] _currentUserHandle: lookup threw — $e');
+      return null;
+    }
+  }
+
+  // handle -> display name cache. Populated lazily via displayNameFor
+  // (called from the UI) and pre-warmed in bulk after fetchRecords, so
+  // names are usually already resolved by the time anything renders. An
+  // RxMap so any Obx reading displayNameFor rebuilds once a name actually
+  // resolves.
+  final RxMap<String, String> _displayNameCache = <String, String>{}.obs;
+
+  /// Resolves a handle to a display name. Returns the cached name once
+  /// resolved; until then (and if resolution fails, e.g. the handle no
+  /// longer matches anyone — see the trade-off note on FarmRecord), falls
+  /// back to showing the raw handle so the UI always has *something*
+  /// rather than blanking.
+  String displayNameFor(String? handle) {
+    // Touch the cache unconditionally, before any early return — a caller
+    // wrapping this in Obx needs a real Rx read on every code path, or
+    // GetX throws its "no observables found" assertion on records where
+    // the handle is null (no author/editor stamped yet). Reading .length
+    // is enough to register the dependency; the value itself is unused.
+    // ignore: unnecessary_statements
+    _displayNameCache.length;
+
+    if (handle == null || handle.isEmpty) return 'Unknown';
+    final cached = _displayNameCache[handle];
+    if (cached != null) return cached;
+    _resolveDisplayName(handle); // fire-and-forget; updates cache async
+    return handle;
+  }
+
+  Future<void> _resolveDisplayName(String handle) async {
+    if (_displayNameCache.containsKey(handle)) return;
+    _displayNameCache[handle] = handle; // placeholder — stops duplicate fetches
+    try {
+      // Profiles live at UserData/{uid}/ProfileData/main — a subcollection
+      // under each user, not a top-level collection — so finding "the user
+      // with this handle" needs a collectionGroup query, not a regular one.
+      // NOTE: this requires a Firestore collection-group index on
+      // ProfileData.handle. If this throws failed-precondition, Firestore's
+      // error message includes a direct link to create it.
+      final query = await _firestore
+          .collectionGroup('ProfileData')
+          .where('handle', isEqualTo: handle)
+          .limit(1)
+          .get();
+      if (query.docs.isNotEmpty) {
+        final profile = UserProfileData.fromMap(query.docs.first.data());
+        _displayNameCache[handle] = profile.name;
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('[RecordsController] _resolveDisplayName($handle): query '
+          'threw — $e. If this says failed-precondition, follow the link '
+          'in the error to create the required index.');
+      // Leave the handle placeholder in place — already a reasonable
+      // fallback.
+    }
+  }
+
+  Future<void> _prewarmDisplayNames(Iterable<FarmRecord> allRecords) async {
+    final handles = <String>{};
+    for (final r in allRecords) {
+      if (r.createdByHandle != null) handles.add(r.createdByHandle!);
+      if (r.updatedByHandle != null) handles.add(r.updatedByHandle!);
+    }
+    await Future.wait(handles.map(_resolveDisplayName));
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -54,8 +188,6 @@ class RecordsController extends GetxController {
   }
 
   Future<void> fetchRecords() async {
-    final activeWs = _workspaceService.selectedWorkspace.value;
-    if (activeWs == null) return;
 
     isLoading.value = true;
     try {
@@ -80,6 +212,7 @@ class RecordsController extends GetxController {
 
       records.value = parsed;
       dateIndex.rebuild(parsed.expand((root) => root.dfs()));
+      _prewarmDisplayNames(parsed.expand((root) => root.dfs())); // fire-and-forget
     } catch (e) {
       print("Error loading records: $e");
     } finally {
@@ -161,6 +294,45 @@ class RecordsController extends GetxController {
     return records.expand((root) => root.dfs()).where(test).toList();
   }
 
+  /// Every record authored by [handle], via DFS across the forest.
+  List<FarmRecord> filterByAuthor(String handle) =>
+      filterRecordsDfs((r) => r.createdByHandle == handle);
+
+  /// Every record whose most recent edit was by [handle], via DFS.
+  List<FarmRecord> filterByEditor(String handle) =>
+      filterRecordsDfs((r) => r.updatedByHandle == handle);
+
+  /// Distinct author handles present anywhere in the forest — for
+  /// populating an author-filter dropdown.
+  List<String> get distinctAuthorHandles => allRecordsFlat
+      .map((r) => r.createdByHandle)
+      .whereType<String>()
+      .toSet()
+      .toList();
+
+  /// Distinct editor handles present anywhere in the forest — for
+  /// populating a last-editor-filter dropdown.
+  List<String> get distinctEditorHandles => allRecordsFlat
+      .map((r) => r.updatedByHandle)
+      .whereType<String>()
+      .toSet()
+      .toList();
+
+  /// Every record touched by [handle] — as author, editor, or both (the
+  /// same field if it's never been edited since creation). This is the
+  /// one the single "filter by user" dropdown uses; filterByAuthor/
+  /// filterByEditor above stay available separately for anyone who wants
+  /// the narrower, single-field version.
+  List<FarmRecord> filterByContributor(String handle) => filterRecordsDfs(
+      (r) => r.createdByHandle == handle || r.updatedByHandle == handle);
+
+  /// Distinct handles that appear as either author or editor anywhere in
+  /// the forest — for populating the single "filter by user" dropdown.
+  List<String> get distinctContributorHandles => {
+        ...distinctAuthorHandles,
+        ...distinctEditorHandles,
+      }.toList();
+
   // -------------------------------------------------------------------
   // Merge sort. A standalone utility over any flat list of FarmRecord —
   // not tied to how that list was produced, so it works equally well on
@@ -228,6 +400,16 @@ class RecordsController extends GetxController {
       case RecordSortField.name:
         result = a.name.toLowerCase().compareTo(b.name.toLowerCase());
         break;
+      case RecordSortField.author:
+        result = displayNameFor(a.createdByHandle)
+            .toLowerCase()
+            .compareTo(displayNameFor(b.createdByHandle).toLowerCase());
+        break;
+      case RecordSortField.editor:
+        result = displayNameFor(a.updatedByHandle)
+            .toLowerCase()
+            .compareTo(displayNameFor(b.updatedByHandle).toLowerCase());
+        break;
     }
     return direction == SortDirection.ascending ? result : -result;
   }
@@ -270,6 +452,10 @@ class RecordsController extends GetxController {
   /// Creates [record] as a new top-level root ([parentId] null) or nested
   /// inside the Folder identified by [parentId] (located via BFS).
   Future<void> createRecord(FarmRecord record, {String? parentId}) async {
+    final handle = await _currentUserHandle();
+    record.createdByHandle = handle;
+    record.updatedByHandle = handle;
+
     if (parentId == null) {
       records.add(record);
       await _persistRoot(record);
@@ -297,6 +483,10 @@ class RecordsController extends GetxController {
     // The date index holds object references, not ids — grab the pre-edit
     // object now, before it's replaced, so it can be swapped out below.
     final previous = location.record;
+
+    // Authorship never changes on edit; editorship always does.
+    updated.createdByHandle = previous.createdByHandle;
+    updated.updatedByHandle = await _currentUserHandle();
 
     updated.children
       ..clear()
@@ -427,8 +617,6 @@ class RecordsController extends GetxController {
   // -------------------------------------------------------------------
 
   Future<void> _persistRoot(FarmRecord root) async {
-    final activeWs = _workspaceService.selectedWorkspace.value;
-    if (activeWs == null) return;
     await _firestore
         .collection('Workspaces')
         .doc(RECORDS)
@@ -438,8 +626,6 @@ class RecordsController extends GetxController {
   }
 
   Future<void> _deleteRootDoc(String rootId) async {
-    final activeWs = _workspaceService.selectedWorkspace.value;
-    if (activeWs == null) return;
     await _firestore
         .collection('Workspaces')
         .doc(RECORDS)

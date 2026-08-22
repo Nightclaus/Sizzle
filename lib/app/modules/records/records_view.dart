@@ -25,6 +25,11 @@ class _RecordsViewState extends State<RecordsView> {
   RecordSortField _sortField = RecordSortField.name;
   SortDirection _sortDirection = SortDirection.ascending;
 
+  // 'All' or an actual handle — matches records where that handle is
+  // EITHER the author or the editor (same field, if never edited since
+  // creation). One control, not separate author/editor dropdowns.
+  String _userFilter = 'All';
+
   // Sort is always visible/enabled — touching it (rather than requiring a
   // type/date filter to already be active) is itself what switches the
   // body from the tree to the flat, DFS-filtered, merge-sorted list.
@@ -118,7 +123,10 @@ class _RecordsViewState extends State<RecordsView> {
       return _buildSearchResults();
     }
 
-    if (_typeFilter != 'All' || _dateRangeActive || _sortActivated) {
+    if (_typeFilter != 'All' ||
+        _dateRangeActive ||
+        _sortActivated ||
+        _userFilter != 'All') {
       return _buildFilteredList();
     }
 
@@ -161,6 +169,12 @@ class _RecordsViewState extends State<RecordsView> {
             onChanged: (v) => setState(() => _typeFilter = v!),
           ),
           _buildDateRangeSlider(),
+          _buildHandleFilterDropdown(
+            value: _userFilter,
+            handles: controller.distinctContributorHandles,
+            allLabel: 'Any user',
+            onChanged: (v) => setState(() => _userFilter = v),
+          ),
           DropdownButton<RecordSortField>(
             value: _sortField,
             underline: const SizedBox(),
@@ -173,6 +187,12 @@ class _RecordsViewState extends State<RecordsView> {
               DropdownMenuItem(
                   value: RecordSortField.updatedAt,
                   child: Text('Sort: Updated')),
+              DropdownMenuItem(
+                  value: RecordSortField.author,
+                  child: Text('Sort: Author')),
+              DropdownMenuItem(
+                  value: RecordSortField.editor,
+                  child: Text('Sort: Editor')),
             ],
             onChanged: (v) => setState(() {
               _sortField = v!;
@@ -193,9 +213,12 @@ class _RecordsViewState extends State<RecordsView> {
               _sortActivated = true;
             }),
           ),
-          if (_sortActivated && _typeFilter == 'All' && !_dateRangeActive)
+          if (_sortActivated &&
+              _typeFilter == 'All' &&
+              !_dateRangeActive &&
+              _userFilter == 'All')
             // Sort is the only reason we're off the tree right now — give
-            // a way back that doesn't require touching type/date too.
+            // a way back that doesn't require touching the others too.
             InkWell(
               onTap: () => setState(() => _sortActivated = false),
               child: const Padding(
@@ -213,7 +236,30 @@ class _RecordsViewState extends State<RecordsView> {
     );
   }
 
-  /// Two-thumb slider over the dataset's actual createdAt span (earliest
+  /// Shared builder for the author and editor dropdowns — same shape,
+  /// different data source. Labels are resolved handle -> display name via
+  /// controller.displayNameFor; the dropdown *value* stays the handle
+  /// (stable-ish identifier) even though what's shown is the friendly name.
+  Widget _buildHandleFilterDropdown({
+    required String value,
+    required List<String> handles,
+    required String allLabel,
+    required ValueChanged<String> onChanged,
+  }) {
+    if (handles.isEmpty) return const SizedBox.shrink();
+    return DropdownButton<String>(
+      value: value,
+      underline: const SizedBox(),
+      items: [
+        DropdownMenuItem(value: 'All', child: Text(allLabel)),
+        for (final handle in handles)
+          DropdownMenuItem(
+              value: handle, child: Text(controller.displayNameFor(handle))),
+      ],
+      onChanged: (v) => onChanged(v!),
+    );
+  }
+
   /// to latest — read straight off the date index, O(1), since it's
   /// already sorted). Dragging it narrows `_selectedRange`; queries against
   /// it go through RecordsController.findRecordsByDateRange, i.e. the
@@ -351,6 +397,17 @@ class _RecordsViewState extends State<RecordsView> {
         typed = inRange.where((r) => r is! Folder).toList();
     }
 
+    if (_userFilter != 'All') {
+      // OR, not AND — matches this record if the selected user is either
+      // its author or its editor (same field, if never edited since
+      // creation).
+      typed = typed
+          .where((r) =>
+              r.createdByHandle == _userFilter ||
+              r.updatedByHandle == _userFilter)
+          .toList();
+    }
+
     final sorted = controller.mergeSort<FarmRecord>(typed,
         field: _sortField, direction: _sortDirection);
 
@@ -375,6 +432,24 @@ class _RecordsViewState extends State<RecordsView> {
 
   /// The card used for any flat (non-tree) row — search results and the
   /// type-filtered list both share this.
+  /// "By <author>" or, once a record has actually been edited by someone
+  /// else, "By <author> · edited by <editor>". Obx because names resolve
+  /// asynchronously (displayNameFor may return a raw handle on first call
+  /// and the real name a moment later) — this rebuilds when that happens
+  /// rather than freezing on whatever was known at first paint.
+  Widget _buildAuthorEditorCaption(FarmRecord record) {
+    return Obx(() {
+      final author = controller.displayNameFor(record.createdByHandle);
+      final editedByDifferentPerson = record.updatedByHandle != null &&
+          record.updatedByHandle != record.createdByHandle;
+      final text = editedByDifferentPerson
+          ? 'By $author · edited by ${controller.displayNameFor(record.updatedByHandle)}'
+          : 'By $author';
+      return Text(text,
+          style: const TextStyle(fontSize: 11, color: Colors.black45));
+    });
+  }
+
   Widget _buildRecordListTile(FarmRecord record) {
     final path = controller.getFolderPathString(record.id);
     return Card(
@@ -385,8 +460,15 @@ class _RecordsViewState extends State<RecordsView> {
         title: Text(record.name,
             style: const TextStyle(
                 fontWeight: FontWeight.bold, color: _textColor)),
-        subtitle: Text(path ?? record.getSummary(),
-            style: const TextStyle(fontStyle: FontStyle.italic)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(path ?? record.getSummary(),
+                style: const TextStyle(fontStyle: FontStyle.italic)),
+            _buildAuthorEditorCaption(record),
+          ],
+        ),
         trailing: _rowActions(record),
         onTap: () => _openRecord(record),
       ),
@@ -516,7 +598,14 @@ class _RecordsViewState extends State<RecordsView> {
         title: Text(record.name,
             style: const TextStyle(
                 fontWeight: FontWeight.bold, color: _textColor)),
-        subtitle: Text(record.getSummary()),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(record.getSummary()),
+            _buildAuthorEditorCaption(record),
+          ],
+        ),
         trailing: _rowActions(record, parentButton: isFolder),
         onTap: () => _openRecord(record),
       ),
@@ -670,6 +759,7 @@ class _RecordsViewState extends State<RecordsView> {
       ),
       builder: (_) => _RecordDetailSheet(
         record: record,
+        controller: controller,
         folderPath: controller.getFolderPathString(record.id),
         onEdit: () {
           Navigator.pop(context);
@@ -686,12 +776,14 @@ class _RecordsViewState extends State<RecordsView> {
 
 class _RecordDetailSheet extends StatelessWidget {
   final FarmRecord record;
+  final RecordsController controller;
   final String? folderPath;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _RecordDetailSheet({
     required this.record,
+    required this.controller,
     required this.folderPath,
     required this.onEdit,
     required this.onDelete,
@@ -702,7 +794,11 @@ class _RecordDetailSheet extends StatelessWidget {
     final fields = record.toMap()
       ..remove('children')
       ..remove('type')
-      ..remove('id');
+      ..remove('id')
+      // Shown explicitly below (resolved to a display name), not dumped
+      // as a raw handle alongside the rest of the fields.
+      ..remove('createdByHandle')
+      ..remove('updatedByHandle');
 
     return SafeArea(
       // The sheet as a whole scrolls (title, path, fields, buttons — all of
@@ -731,6 +827,18 @@ class _RecordDetailSheet extends StatelessWidget {
               const SizedBox(height: 4),
               Text(record.recordType,
                   style: const TextStyle(color: Colors.black54)),
+              const SizedBox(height: 8),
+              // Obx, not a one-shot read: displayNameFor can return a raw
+              // handle on first call and resolve the real name a moment
+              // later (async Firestore lookup) — this rebuilds when it does,
+              // rather than freezing on whatever was known when the sheet
+              // first opened.
+              Obx(() => Text(
+                    'Created by ${controller.displayNameFor(record.createdByHandle)}'
+                    ' · last updated by ${controller.displayNameFor(record.updatedByHandle)}',
+                    style:
+                        const TextStyle(fontSize: 12, color: Colors.black45),
+                  )),
               const Divider(height: 24),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

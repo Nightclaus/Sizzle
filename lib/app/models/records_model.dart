@@ -10,6 +10,30 @@ abstract class FarmRecord {
   DateTime updatedAt;
   bool isActive;
 
+  // Who made this record and who last edited it — stored as the user's
+  // *handle* (per your request), resolved to a display name only at the
+  // UI layer (see RecordsController.displayNameFor). Nullable so older
+  // records with neither field persisted still deserialize fine.
+  //
+  // Trade-off worth knowing: a handle isn't a permanent identifier the way
+  // a Firebase Auth UID is — if a user ever changes their handle, records
+  // they already touched keep pointing at the old one, and
+  // displayNameFor's reverse lookup (handle -> current profile) will fail
+  // to find them, falling back to showing the stale handle itself. If
+  // handles are meant to be changeable in this app, storing the UID
+  // instead (and resolving to a handle/name only for display) would be
+  // more robust — flagging this now rather than silently deciding it for
+  // you.
+  //
+  // createdByHandle is set once, at creation, by
+  // RecordsController.createRecord and never touched again; updatedByHandle
+  // is re-stamped by RecordsController.updateRecord on every edit.
+  // Deliberately not final — updateRecord carries createdByHandle over
+  // from the pre-edit object rather than the form setting it, so it has
+  // to stay assignable.
+  String? createdByHandle;
+  String? updatedByHandle;
+
   List<FarmRecord> children;
 
   FarmRecord({
@@ -20,6 +44,8 @@ abstract class FarmRecord {
     required this.createdAt,
     required this.updatedAt,
     this.isActive = true,
+    this.createdByHandle,
+    this.updatedByHandle,
     List<FarmRecord>? children,
   }) : children = children ?? [];
 
@@ -155,6 +181,8 @@ abstract class FarmRecord {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'isActive': isActive,
+      'createdByHandle': createdByHandle,
+      'updatedByHandle': updatedByHandle,
       'children': children.map((child) => child.toMap()).toList(),
     };
   }
@@ -202,6 +230,8 @@ class Folder extends FarmRecord {
     required super.createdAt,
     required super.updatedAt,
     super.isActive,
+    super.createdByHandle,
+    super.updatedByHandle,
     super.children,
   });
 
@@ -230,6 +260,8 @@ class Folder extends FarmRecord {
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
       isActive: map['isActive'] ?? true,
+      createdByHandle: map['createdByHandle'] as String?,
+      updatedByHandle: map['updatedByHandle'] as String?,
       children: FarmRecord._childrenFromMap(map),
     );
   }
@@ -260,6 +292,8 @@ class Animal extends FarmRecord {
     required super.createdAt,
     required super.updatedAt,
     super.isActive,
+    super.createdByHandle,
+    super.updatedByHandle,
     super.children,
     required this.species,
     required this.breed,
@@ -336,6 +370,8 @@ class Animal extends FarmRecord {
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
       isActive: map['isActive'] ?? true,
+      createdByHandle: map['createdByHandle'] as String?,
+      updatedByHandle: map['updatedByHandle'] as String?,
       children: FarmRecord._childrenFromMap(map),
       species: map['species'],
       breed: map['breed'],
@@ -389,6 +425,8 @@ class Equipment extends FarmRecord {
     required super.createdAt,
     required super.updatedAt,
     super.isActive,
+    super.createdByHandle,
+    super.updatedByHandle,
     super.children,
     required this.equipmentType,
     required this.manufacturer,
@@ -474,6 +512,8 @@ class Equipment extends FarmRecord {
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
       isActive: map['isActive'] ?? true,
+      createdByHandle: map['createdByHandle'] as String?,
+      updatedByHandle: map['updatedByHandle'] as String?,
       children: FarmRecord._childrenFromMap(map),
       equipmentType: map['equipmentType'],
       manufacturer: map['manufacturer'],
@@ -523,6 +563,8 @@ class Inventory extends FarmRecord {
     required super.createdAt,
     required super.updatedAt,
     super.isActive,
+    super.createdByHandle,
+    super.updatedByHandle,
     super.children,
     required this.category,
     required this.unit,
@@ -604,6 +646,8 @@ class Inventory extends FarmRecord {
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
       isActive: map['isActive'] ?? true,
+      createdByHandle: map['createdByHandle'] as String?,
+      updatedByHandle: map['updatedByHandle'] as String?,
       children: FarmRecord._childrenFromMap(map),
       category: map['category'],
       unit: map['unit'],

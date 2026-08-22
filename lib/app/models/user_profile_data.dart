@@ -4,13 +4,13 @@ class UserProfileData {
   final String name;
   final String handle;
   final String description;
-  final String? mostRecentWorkspaceId; // <-- NEW
+  final String? mostRecentWorkspaceId;
 
   UserProfileData({ 
     required this.name, 
     required this.handle, 
     required this.description,
-    this.mostRecentWorkspaceId, // <-- NEW
+    this.mostRecentWorkspaceId,
   });
 
   factory UserProfileData.fromMap(Map<String, dynamic> map) {
@@ -18,7 +18,7 @@ class UserProfileData {
       name: map['name'] as String? ?? 'No Name',
       handle: map['handle'] as String? ?? 'No Handle',
       description: map['description'] as String? ?? '',
-      mostRecentWorkspaceId: map['mostRecentWorkspaceId'] as String?, // <-- NEW
+      mostRecentWorkspaceId: map['mostRecentWorkspaceId'] as String?,
     );
   }
 
