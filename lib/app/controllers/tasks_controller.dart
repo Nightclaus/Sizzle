@@ -74,8 +74,17 @@ class TasksController extends BaseFirebaseController {
       firestore.collection('Workspaces').doc(wsId).collection('Tasks'),
       Task.fromFirestore,
     );
+
+    // Linear Search replacement for matching tasks to columns
     for (final task in tasks) {
-      userColumns.firstWhereOrNull((col) => col.id == task.parentId)?.tasks.add(task);
+      TaskColumn? targetColumn;
+      for (final col in userColumns) {
+        if (col.id == task.parentId) {
+          targetColumn = col;
+          break; // Stop searching once found
+        }
+      }
+      targetColumn?.tasks.add(task);
     }
 
     columns.value = userColumns;
@@ -83,7 +92,15 @@ class TasksController extends BaseFirebaseController {
 
   Future<void> addTask(String columnId, Task task) async {
     if (tasksDbRef == null) return;
-    final columnIndex = columns.indexWhere((col) => col.id == columnId);
+
+    // Linear Search to find column index
+    int columnIndex = -1;
+    for (int i = 0; i < columns.length; i++) {
+      if (columns[i].id == columnId) {
+        columnIndex = i;
+        break;
+      }
+    }
     if (columnIndex == -1) return;
 
     await setDoc(tasksDbRef!, task.id, {
@@ -95,16 +112,39 @@ class TasksController extends BaseFirebaseController {
       "createdAt": FieldValue.serverTimestamp(),
     });
 
-    columns[columnIndex].tasks.removeWhere((t) => t.id == task.id);
+    // Linear Search to find and remove duplicate task before adding
+    final tasksList = columns[columnIndex].tasks;
+    for (int i = 0; i < tasksList.length; i++) {
+      if (tasksList[i].id == task.id) {
+        tasksList.removeAt(i);
+        break;
+      }
+    }
     columns[columnIndex].tasks.add(task);
   }
 
   Future<void> deleteTask(String columnId, String taskId) async {
     if (tasksDbRef == null) return;
     await deleteDoc(tasksDbRef!, taskId);
-    final columnIndex = columns.indexWhere((col) => col.id == columnId);
+
+    // Linear Search to find column index
+    int columnIndex = -1;
+    for (int i = 0; i < columns.length; i++) {
+      if (columns[i].id == columnId) {
+        columnIndex = i;
+        break;
+      }
+    }
+
+    // Linear Search to find and remove the task inside the column
     if (columnIndex != -1) {
-      columns[columnIndex].tasks.removeWhere((task) => task.id == taskId);
+      final tasksList = columns[columnIndex].tasks;
+      for (int i = 0; i < tasksList.length; i++) {
+        if (tasksList[i].id == taskId) {
+          tasksList.removeAt(i);
+          break;
+        }
+      }
     }
   }
 
@@ -115,7 +155,14 @@ class TasksController extends BaseFirebaseController {
   }) async {
     if (tasksDbRef == null) return;
 
-    fromColumn.tasks.removeWhere((t) => t.id == task.id);
+    // Linear Search to find and remove task from the source column
+    for (int i = 0; i < fromColumn.tasks.length; i++) {
+      if (fromColumn.tasks[i].id == task.id) {
+        fromColumn.tasks.removeAt(i);
+        break;
+      }
+    }
+
     task.parentId = toColumn.id;
     toColumn.tasks.add(task);
 
@@ -123,19 +170,40 @@ class TasksController extends BaseFirebaseController {
   }
 
   void reorderTaskInColumn(String columnId, int oldIndex, int newIndex) {
-    final columnIndex = columns.indexWhere((col) => col.id == columnId);
+    // Linear Search to find column index
+    int columnIndex = -1;
+    for (int i = 0; i < columns.length; i++) {
+      if (columns[i].id == columnId) {
+        columnIndex = i;
+        break;
+      }
+    }
     if (columnIndex == -1) return;
+    
     final task = columns[columnIndex].tasks.removeAt(oldIndex);
     if (oldIndex < newIndex) newIndex -= 1;
     columns[columnIndex].tasks.insert(newIndex, task);
   }
 
+  // Nested Linear Search to find a column containing the target task
   TaskColumn? getColumnByTask(Task task) {
-    return columns.firstWhereOrNull((col) => col.tasks.any((t) => t.id == task.id));
+    for (final col in columns) {
+      for (final t in col.tasks) {
+        if (t.id == task.id) {
+          return col;
+        }
+      }
+    }
+    return null;
   }
 
-  /// Tasks currently assigned to [uid]'s column within this workspace.
+  // Linear Search to find a user's column by uid
   List<Task> getTasksForUser(String uid) {
-    return columns.firstWhereOrNull((col) => col.id == uid)?.tasks.toList() ?? [];
+    for (final col in columns) {
+      if (col.id == uid) {
+        return col.tasks.toList();
+      }
+    }
+    return [];
   }
 }
