@@ -7,6 +7,7 @@ import '../models/user_profile_data.dart';
 import '../helpers/date_index.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'workspaces_controller.dart';
+import '../helpers/csv_export_helper.dart';
 
 const RECORDS = "_records";
 
@@ -218,6 +219,29 @@ class RecordsController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  // -------------------------------------------------------------------
+  // CSV export — flattens the forest (DFS, via allRecordsFlat) and hands
+  // it to the CSV helper, which splits it back out by concrete type into
+  // three files (Animals / Equipment / Inventory) and triggers the actual
+  // download. Folders carry no type-specific fields, so they're filtered
+  // out before the helper ever sees the list.
+  // -------------------------------------------------------------------
+  Future<void> exportRecordsAsCsv() async {
+    final flat = allRecordsFlat.where((r) => r is! Folder).toList();
+
+    // The CSV is a one-shot snapshot, not a rebuilding Obx widget — resolve
+    // every author/editor handle it references *before* writing rows, so
+    // the file isn't full of raw handles that would've resolved a moment
+    // later on screen.
+    await _prewarmDisplayNames(flat);
+
+    await exportFarmRecordsToCsv(
+      flat,
+      resolveDisplayName: displayNameFor,
+      folderPathFor: getFolderPathString,
+    );
   }
 
   // -------------------------------------------------------------------

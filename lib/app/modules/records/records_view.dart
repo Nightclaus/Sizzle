@@ -34,6 +34,7 @@ class _RecordsViewState extends State<RecordsView> {
   // type/date filter to already be active) is itself what switches the
   // body from the tree to the flat, DFS-filtered, merge-sorted list.
   bool _sortActivated = false;
+  bool _isExporting = false;
 
   // null = "no date filter, full range". Values are milliseconds-since-
   // epoch (what RangeSlider needs — it only takes doubles), normalized to
@@ -51,6 +52,42 @@ class _RecordsViewState extends State<RecordsView> {
     _searchController.dispose();
     super.dispose();
   }
+  Widget _buildDownloadButton() {
+    return IconButton(
+      tooltip: 'Download records as CSV',
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: _textColor,
+      ),
+      icon: _isExporting
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: _accent),
+            )
+          : const Icon(Icons.download),
+      onPressed: _isExporting ? null : _exportCsv,
+    );
+}
+
+  Future<void> _exportCsv() async {
+    setState(() => _isExporting = true);
+    try {
+      await controller.exportRecordsAsCsv();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CSV export ready — check your downloads.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,28 +104,36 @@ class _RecordsViewState extends State<RecordsView> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search records…',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search records…',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
                       ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+                    ),
+                    onChanged: (v) => setState(() => _query = v),
+                  ),
                 ),
-              ),
-              onChanged: (v) => setState(() => _query = v),
+                const SizedBox(width: 8),
+                _buildDownloadButton(),
+              ],
             ),
           ),
           Expanded(
