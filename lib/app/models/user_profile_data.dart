@@ -4,6 +4,7 @@ class UserProfileData {
   final String name;
   final String handle;
   final String description;
+  final bool isAdmin; 
   final String? mostRecentWorkspaceId;
 
   UserProfileData({ 
@@ -11,6 +12,7 @@ class UserProfileData {
     required this.handle, 
     required this.description,
     this.mostRecentWorkspaceId,
+    this.isAdmin = false,
   });
 
   factory UserProfileData.fromMap(Map<String, dynamic> map) {
@@ -18,6 +20,7 @@ class UserProfileData {
       name: map['name'] as String? ?? 'No Name',
       handle: map['handle'] as String? ?? 'No Handle',
       description: map['description'] as String? ?? '',
+      isAdmin: map['isAdmin'] as bool? ?? false,
       mostRecentWorkspaceId: map['mostRecentWorkspaceId'] as String?,
     );
   }
@@ -27,7 +30,8 @@ class UserProfileData {
       'name': name, 
       'handle': handle, 
       'description': description,
-      'mostRecentWorkspaceId': mostRecentWorkspaceId, // <-- NEW
+      'isAdmin': isAdmin,
+      'mostRecentWorkspaceId': mostRecentWorkspaceId,
       'lastUpdated': FieldValue.serverTimestamp(),
     };
   }
